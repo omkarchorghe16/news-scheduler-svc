@@ -1,0 +1,39 @@
+# Maven
+target/
+*.jar
+*.war
+*.ear
+.m2/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+*.iml
+
+# Gradle
+.gradle/
+build/
+
+# Database
+*.db
+*.h2.db
+./data/
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+application-local.yml
+
+# Build
+out/
+.classpath
+.project
+.settings/
