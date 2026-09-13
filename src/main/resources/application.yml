@@ -1,0 +1,68 @@
+spring:
+  application:
+    name: stock-news-scheduler-svc
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+app:
+  notifications:
+    slack:
+      webhook-url: ${SLACK_WEBHOOK_URL:}
+      portfolio-webhook-url: ${SLACK_PORTFOLIO_WEBHOOK_URL:}
+    telegram:
+      bot-token: ${TELEGRAM_BOT_TOKEN:}
+      chat-id: ${TELEGRAM_CHAT_ID:}
+    whatsapp:
+      enabled: false
+      twilio-sid: ${TWILIO_ACCOUNT_SID:}
+      twilio-token: ${TWILIO_AUTH_TOKEN:}
+      from-number: ${TWILIO_WHATSAPP_FROM:}
+      to-number: ${TWILIO_WHATSAPP_TO:}
+  apis:
+    finnhub-key: ${FINNHUB_API_KEY:}
+    newsapi-key: ${NEWSAPI_KEY:}
+    timeout-seconds: 5
+    max-retries: 1
+  watchlist:
+    us-symbols:
+      - AAPL
+      - GOOGL
+      - MSFT
+      - TSLA
+      - META
+      - AMZN
+      - NVDA
+      - JPM
+      - V
+      - WMT
+    nse-symbols:
+      - RELIANCE.NS
+      - INFY.NS
+      - TCS.NS
+      - WIPRO.NS
+      - LT.NS
+      - MARUTI.NS
+      - BAJAJ-AUTO.NS
+      - ICICIBANK.NS
+      - SBIN.NS
+      - BHARTIARTL.NS
+    portfolio-symbols: []
+  schedule:
+    cron-expression: "0 0 9 * * MON-FRI"
+    timezone: "America/Chicago"
+
+logging:
+  level:
+    root: INFO
+    com.stocknews: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"

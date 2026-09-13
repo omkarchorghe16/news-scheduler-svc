@@ -1,0 +1,51 @@
+# Local development configuration example
+# Copy this file to application-local.yml and fill in your actual values
+# Run with: mvn spring-boot:run -Dspring-boot.run.arguments="--spring.profiles.active=local"
+
+spring:
+  datasource:
+    url: jdbc:h2:./data/stocknews
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+app:
+  notifications:
+    slack:
+      webhook-url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+      portfolio-webhook-url: "https://hooks.slack.com/services/YOUR/PORTFOLIO/WEBHOOK/URL"
+    telegram:
+      bot-token: "YOUR_TELEGRAM_BOT_TOKEN_FROM_BOTFATHER"
+      chat-id: "YOUR_TELEGRAM_CHAT_ID"
+    whatsapp:
+      enabled: false
+      twilio-sid: "YOUR_TWILIO_ACCOUNT_SID"
+      twilio-token: "YOUR_TWILIO_AUTH_TOKEN"
+      from-number: "whatsapp:+1234567890"
+      to-number: "whatsapp:+1234567890"
+  apis:
+    finnhub-key: "YOUR_FINNHUB_API_KEY"
+    newsapi-key: "YOUR_NEWSAPI_KEY"
+    timeout-seconds: 10
+    max-retries: 2
+  watchlist:
+    us-symbols:
+      - AAPL
+      - GOOGL
+      - MSFT
+    nse-symbols:
+      - RELIANCE.NS
+      - INFY.NS
+      - TCS.NS
+    portfolio-symbols:
+      - AAPL
+      - INFY.NS
+  schedule:
+    cron-expression: "0 */5 * * * *"  # Every 5 minutes for local testing
+    timezone: "America/Chicago"
+
+logging:
+  level:
+    com.stocknews: DEBUG
+    org.springframework.web: DEBUG
