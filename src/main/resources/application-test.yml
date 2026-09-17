@@ -1,0 +1,38 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:news_scheduler_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  task:
+    scheduling:
+      enabled: false
+
+app:
+  notifications:
+    slack:
+      webhook-url: ""
+      portfolio-webhook-url: ""
+    telegram:
+      bot-token: ""
+      chat-id: ""
+    whatsapp:
+      enabled: false
+      twilio-sid: ""
+      twilio-token: ""
+      from-number: ""
+      to-number: ""
+  apis:
+    finnhub-key: ""
+    newsapi-key: ""
+    timeout-seconds: 5
+    max-retries: 3
+
+logging:
+  level:
+    root: INFO
+    com.stocknews: DEBUG
