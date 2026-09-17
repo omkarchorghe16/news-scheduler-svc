@@ -1,0 +1,151 @@
+{
+  "info": {
+    "name": "Stock News Scheduler Service",
+    "description": "Ready-to-use Postman collection for the Stock News Scheduler Service REST API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "apiPath",
+      "value": "/api/digest",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Digest API",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {\n  pm.response.to.have.status(200);\n});\n",
+                  "pm.test(\"Response body is running message\", function () {\n  pm.expect(pm.response.text()).to.include(\"Stock News Scheduler Service is running\");\n});\n"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPath}}/health"
+          },
+          "response": []
+        },
+        {
+          "name": "Trigger Daily Digest",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {\n  pm.response.to.have.status(200);\n});\n",
+                  "pm.test(\"Digest execution message received\", function () {\n  pm.expect(pm.response.text()).to.include(\"Daily digest executed successfully\");\n});\n"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "url": "{{baseUrl}}{{apiPath}}/run"
+          },
+          "response": []
+        },
+        {
+          "name": "Trigger Portfolio Digest",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {\n  pm.response.to.have.status(200);\n});\n",
+                  "pm.test(\"Portfolio digest execution message received\", function () {\n  pm.expect(pm.response.text()).to.include(\"Portfolio digest executed successfully\");\n});\n"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "url": "{{baseUrl}}{{apiPath}}/portfolio"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Actuator",
+      "item": [
+        {
+          "name": "Spring Boot Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {\n  pm.response.to.have.status(200);\n});\n",
+                  "pm.test(\"Health status is UP\", function () {\n  var json = pm.response.json();\n  pm.expect(json.status).to.eql(\"UP\");\n});\n"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health"
+          },
+          "response": []
+        },
+        {
+          "name": "Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "Prometheus",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/prometheus"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
