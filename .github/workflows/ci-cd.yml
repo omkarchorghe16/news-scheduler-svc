@@ -1,0 +1,222 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '21'
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Compile application
+        run: mvn --batch-mode --update-snapshots -DskipTests package
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-jar
+          path: target/*.jar
+          if-no-files-found: error
+          retention-days: 7
+
+  tests:
+    name: Unit and integration tests
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      SPRING_PROFILES_ACTIVE: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Run unit and integration tests
+        run: mvn --batch-mode test
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: target/surefire-reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  security:
+    name: Dependency security scan
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Scan dependencies with OWASP Dependency-Check
+        run: >-
+          mvn --batch-mode
+          org.owasp:dependency-check-maven:check
+          -DfailBuildOnCVSS=7
+          -Dformat=ALL
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-reports
+          path: target/dependency-check-report.*
+          if-no-files-found: ignore
+          retention-days: 7
+
+  package:
+    name: Package container
+    runs-on: ubuntu-latest
+    needs: [tests, security]
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download packaged artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: application-jar
+          path: target
+
+      - name: Set image name
+        id: image
+        run: echo "image=${IMAGE_NAME,,}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker image
+        run: docker build --tag "${{ steps.image.outputs.image }}" .
+
+      - name: Push Docker image (deployment artifact)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker push "${{ steps.image.outputs.image }}"
+
+      - name: Save Docker image for pull requests
+        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+        run: docker save "${{ steps.image.outputs.image }}" | gzip > image.tar.gz
+
+      - name: Upload Docker image for pull requests
+        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: image.tar.gz
+          retention-days: 7
+
+  deploy:
+    name: Deploy to staging
+    runs-on: ubuntu-latest
+    needs: package
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+    steps:
+      - name: Deploy published image
+        run: |
+          echo "Published deployment image: ${{ needs.package.outputs.image }}"
+          echo "Configure this step with your Kubernetes, ECS, Azure, or other hosting provider deployment command."
+          echo "The image is available in GitHub Container Registry for the staging environment."
+
+  smoke-tests:
+    name: Smoke tests
+    runs-on: ubuntu-latest
+    needs: [package, deploy]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download packaged artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: application-jar
+          path: target
+
+      - name: Start application
+        run: |
+          nohup java -jar target/*.jar \
+            --spring.profiles.active=test \
+            --server.port=8080 > application.log 2>&1 &
+          echo $! > application.pid
+
+      - name: Wait for application readiness
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:8080/actuator/health > health.json; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              cat application.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat health.json
+
+      - name: Verify health endpoint
+        run: curl --fail --silent http://localhost:8080/actuator/health | grep -q '"status":"UP"'
+
+      - name: Verify metrics endpoint
+        run: curl --fail --silent http://localhost:8080/actuator/metrics | grep -q '"names"'
+
+      - name: Verify Prometheus endpoint
+        run: curl --fail --silent http://localhost:8080/actuator/prometheus | grep -q 'jvm_'
+
+      - name: Upload application log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-logs
+          path: application.log
+          if-no-files-found: ignore
