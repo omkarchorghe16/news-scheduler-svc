@@ -237,6 +237,32 @@ app:
     timezone: "America/Chicago"
 ```
 
+### Stock News API Keys
+
+The service supports two news providers. At least one key is required to receive news:
+
+- **Finnhub (recommended for stock-market news):** create a free account at
+  [finnhub.io](https://finnhub.io/register), then copy the API key from the dashboard.
+  This provider supplies general market news and company news for the configured watchlist.
+- **NewsAPI (optional):** create an account at [newsapi.org](https://newsapi.org/register),
+  then copy the key from the account page. This provider supplies search-based market news.
+
+Do not paste keys into Git. Configure them as environment variables before starting Spring Boot:
+
+```bash
+export FINNHUB_API_KEY="paste-your-finnhub-key-here"
+export NEWSAPI_KEY="paste-your-newsapi-key-here" # optional
+mvn spring-boot:run
+```
+
+In IntelliJ IDEA, open **Run | Edit Configurations**, select `StockNewsApplication`, and add
+`FINNHUB_API_KEY=...` (and optionally `NEWSAPI_KEY=...`) under **Environment variables**.
+The placeholders in `src/main/resources/application.yml` read these values automatically.
+
+The default schedule runs once at 09:00 America/Chicago on weekdays; it is not a continuous
+real-time stream. Finnhub is the primary source for stock news, while NewsAPI free plans may
+have provider-specific delays and usage limits.
+
 ## Scheduling
 
 The service runs on a configurable cron expression. Default is **9:00 AM on weekdays (Mon-Fri) in America/Chicago timezone**.
