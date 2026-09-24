@@ -34,8 +34,8 @@ app:
   apis:
     # Set FINNHUB_API_KEY and/or NEWSAPI_KEY in the process environment.
     # Keep secrets out of this file and out of source control.
-    finnhub-key: ${FINNHUB_API_KEY:}
-    newsapi-key: ${NEWSAPI_KEY:}
+    finnhub-key: ${FINNHUB_API_KEY:daq610pr01qpiloo1fd0daq610pr01qpiloo1fdg}
+    newsapi-key: ${NEWSAPI_KEY:8b23de3e16ca4546b2c868c69c6c35d6}
     timeout-seconds: 5
     max-retries: 3
   watchlist:
