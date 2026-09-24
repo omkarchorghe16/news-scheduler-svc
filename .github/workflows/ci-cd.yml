@@ -37,7 +37,7 @@ jobs:
           cache: maven
 
       - name: Compile application
-        run: mvn --batch-mode --update-snapshots -DskipTests package
+        run: mvn --batch-mode -DskipTests package
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
@@ -91,10 +91,19 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: maven
 
+      - name: Cache OWASP Dependency-Check data
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: dependency-check-${{ runner.os }}-${{ hashFiles('pom.xml') }}
+          restore-keys: |
+            dependency-check-${{ runner.os }}-
+
       - name: Scan dependencies with OWASP Dependency-Check
         run: >-
           mvn --batch-mode
           org.owasp:dependency-check-maven:check
+          -DnvdApiKey="23098EA5-F7B3-4F3E-937D-091D65910E7B"
           -DfailBuildOnCVSS=7
           -Dformat=ALL
 
