@@ -1,0 +1,10 @@
+name: Stock News Scheduler - Local
+values:
+  - key: baseUrl
+    value: 'http://localhost:8080'
+  - key: apiPath
+    value: /api/digest
+  - key: serverPort
+    value: '8080'
+  - key: springProfile
+    value: local

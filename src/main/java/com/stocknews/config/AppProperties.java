@@ -52,6 +52,8 @@ public class AppProperties {
     public static class ApisProperties {
         private String finnhubKey;
         private String newsapiKey;
+        private String finnhubBaseUrl = "https://finnhub.io/api/v1";
+        private String yahooBaseUrl = "https://query1.finance.yahoo.com";
         private int timeoutSeconds = 5;
         private int maxRetries = 1;
     }

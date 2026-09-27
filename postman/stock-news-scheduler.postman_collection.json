@@ -104,6 +104,117 @@
       ]
     },
     {
+      "name": "Stock Profiles",
+      "item": [
+        {
+          "name": "Fetch Finnhub Profiles (and save to H2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {\n  pm.response.to.have.status(200);\n});\n",
+                  "pm.test(\"Returns a profile for each requested symbol\", function () {\n  var profiles = pm.response.json();\n  pm.expect(profiles).to.be.an(\"array\").with.lengthOf(2);\n  pm.expect(profiles.map(function (profile) { return profile.symbol; })).to.eql([\"AAPL\", \"MSFT\"]);\n});\n",
+                  "pm.test(\"Finnhub profile has expected fields\", function () {\n  var profile = pm.response.json()[0];\n  [\"name\", \"industry\", \"ipoDate\", \"marketCapitalization\", \"logo\", \"updatedAt\"].forEach(function (field) {\n    pm.expect(profile).to.have.property(field);\n  });\n});\n"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbols\": [\"AAPL\", \"MSFT\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/stocks/finnhub/profiles"
+          },
+          "response": []
+        },
+        {
+          "name": "Fetch Yahoo Finance Profiles (and save to H2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {\n  pm.response.to.have.status(200);\n});\n",
+                  "pm.test(\"Returns a profile for each requested symbol\", function () {\n  var profiles = pm.response.json();\n  pm.expect(profiles).to.be.an(\"array\").with.lengthOf(2);\n  pm.expect(profiles.map(function (profile) { return profile.symbol; })).to.eql([\"AAPL\", \"MSFT\"]);\n});\n",
+                  "pm.test(\"Yahoo profile has expected fields\", function () {\n  var profile = pm.response.json()[0];\n  [\"name\", \"businessSummary\", \"sector\", \"industry\", \"fullTimeEmployees\", \"marketCapitalization\", \"updatedAt\"].forEach(function (field) {\n    pm.expect(profile).to.have.property(field);\n  });\n});\n"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbols\": [\"AAPL\", \"MSFT\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/stocks/yahoo/profiles"
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Empty Stock Symbol List",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Empty symbol list is rejected\", function () {\n  pm.response.to.have.status(400);\n});\n"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbols\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/stocks/finnhub/profiles"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Actuator",
       "item": [
         {

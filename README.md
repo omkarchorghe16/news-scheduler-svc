@@ -11,6 +11,7 @@ A complete Java Spring Boot application that fetches daily stock market news for
 - **Multi-Channel Notifications**: Slack, Telegram, WhatsApp (Twilio)
 - **Portfolio Tracking**: Separate digest for configured portfolio symbols (Slack-only)
 - **On-Demand Triggers**: REST endpoints to manually trigger digests without waiting for schedule
+- **Stock Profiles**: Fetch Finnhub and Yahoo Finance company profiles and persist them separately in H2
 - **Configurable Everything**: @ConfigurationProperties binds all settings from environment variables
 
 ## Tech Stack
@@ -83,6 +84,65 @@ com/stocknews/
 
 ## Setup & Running Locally
 
+### Keeping API keys and credentials out of Git
+
+`application.yml` reads secrets from environment variables (for example, `FINNHUB_API_KEY`);
+do not put real values in the committed file. For local development, export the values in your
+shell before starting the app:
+
+```bash
+export FINNHUB_API_KEY="your-finnhub-key"
+export NEWSAPI_KEY="your-newsapi-key"
+mvn spring-boot:run
+```
+
+To keep them across terminal sessions, add these exports to a local shell profile that is not
+committed, or use your IDE's **Run Configuration → Environment variables**. Do not paste secrets
+into Postman collection/environment exports or commit terminal/IDE configuration files that contain them.
+
+An optional local YAML override is also supported: copy
+`src/main/resources/application-local.yml.example` to the repository root as
+`application-local.yml`, then run with the `local` Spring profile. That filename is in `.gitignore`.
+Prefer referencing environment variables in the local file rather than writing literal secrets:
+
+```yaml
+app:
+  apis:
+    finnhub-key: ${FINNHUB_API_KEY}
+```
+
+If you specifically want a local secrets file, create `application-secrets.yml` in the repository
+root (the same directory as `pom.xml`). `application.yml` imports this file at startup, and
+`.gitignore` excludes it. Put credentials under the matching configuration keys:
+
+```yaml
+app:
+  notifications:
+    telegram:
+      bot-token: "your-new-telegram-bot-token"
+      chat-id: "your-telegram-chat-id"
+  apis:
+    finnhub-key: "your-finnhub-api-key"
+    newsapi-key: "your-newsapi-key"
+```
+
+Create it locally without adding it to Git, restrict its filesystem permissions (for example,
+`chmod 600 application-secrets.yml` on macOS/Linux), and check `git status` to confirm it is ignored.
+The import is optional, so the application can still start when the file is absent. This is suitable
+for local development only; for deployed environments, use the platform secret store or environment
+variables rather than copying this file into the container/image.
+
+For deployment, save each credential in the deployment platform's secret store (or a cloud secret
+manager such as AWS Secrets Manager, Azure Key Vault, or Google Secret Manager), then expose it to
+the application as an environment variable. Configure `FINNHUB_API_KEY`, `NEWSAPI_KEY`, and any
+notification credentials there; Spring resolves them via the `${VARIABLE:}` placeholders in
+`application.yml`. Keep different credentials for dev, test, and production, and never put secrets
+in the image, source repository, or plain deployment manifests. For CI tests, supply test credentials
+through the CI platform's protected secrets; tests that mock providers do not need a live key.
+
+Credentials pasted into chat or other shared systems should be treated as exposed. Revoke/regenerate
+the Telegram bot token and API keys you just shared before using them again.
+
 ### 1. Clone the Repository
 
 ```bash
@@ -92,7 +152,7 @@ cd news-scheduler-svc
 
 ### 2. Set Up Environment Variables
 
-Create a `.env` file or export environment variables:
+Export environment variables in your shell (Spring Boot does not automatically load a plain `.env` file):
 
 ```bash
 # News APIs
@@ -145,6 +205,33 @@ Stock News Scheduler Service is running
 ```
 
 ## REST Endpoints
+
+### Stock Profiles
+
+Fetch one or more symbols by POSTing a JSON list. Each provider has a separate endpoint and H2 table:
+
+```bash
+curl -X POST http://localhost:8080/api/stocks/finnhub/profiles \
+  -H "Content-Type: application/json" \
+  -d '{"symbols":["AAPL","MSFT"]}'
+
+curl -X POST http://localhost:8080/api/stocks/yahoo/profiles \
+  -H "Content-Type: application/json" \
+  -d '{"symbols":["AAPL","MSFT"]}'
+```
+
+The Finnhub response includes company name, industry, IPO date, market capitalization (in millions),
+logo, country, currency, exchange, shares outstanding, phone, and website. Finnhub's `stock/profile2`
+does not provide a business summary. Yahoo Finance provides business summary, sector, industry,
+employee count, company/address details, market capitalization, and the raw provider payload.
+Profiles are upserted by symbol in `finnhub_stock_profiles` and `yahoo_stock_profiles`.
+
+Finnhub requests are spaced to stay within the provider's 60-calls-per-minute limit for this endpoint.
+Yahoo Finance is an unofficial API and may rate-limit requests or change its response format.
+The Postman collection includes success/data assertions for both providers and a validation test for
+an empty symbol list. Import `postman/stock-news-scheduler.postman_collection.json`, select the local
+environment, start the app with `FINNHUB_API_KEY` set to run the Finnhub request, then run the
+Stock Profiles folder. The Yahoo request does not require a key.
 
 ### On-Demand Triggers
 
@@ -206,6 +293,8 @@ app:
   apis:
     finnhub-key: ${FINNHUB_API_KEY}
     newsapi-key: ${NEWSAPI_KEY}
+    finnhub-base-url: ${FINNHUB_BASE_URL:https://finnhub.io/api/v1}
+    yahoo-base-url: ${YAHOO_FINANCE_BASE_URL:https://query1.finance.yahoo.com}
     timeout-seconds: 5  # HTTP timeout
     max-retries: 1  # Retry attempts
   watchlist:

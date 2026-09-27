@@ -1,5 +1,6 @@
 # Local development configuration example
-# Copy this file to application-local.yml and fill in your actual values
+# Optional: copy to application-local.yml for machine-local overrides.
+# Keep actual secrets out of this file when possible; export environment variables instead.
 # Run with: mvn spring-boot:run -Dspring-boot.run.arguments="--spring.profiles.active=local"
 
 spring:
@@ -13,20 +14,22 @@ spring:
 app:
   notifications:
     slack:
-      webhook-url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
-      portfolio-webhook-url: "https://hooks.slack.com/services/YOUR/PORTFOLIO/WEBHOOK/URL"
+      webhook-url: ${SLACK_WEBHOOK_URL:}
+      portfolio-webhook-url: ${SLACK_PORTFOLIO_WEBHOOK_URL:}
     telegram:
-      bot-token: "YOUR_TELEGRAM_BOT_TOKEN_FROM_BOTFATHER"
-      chat-id: "YOUR_TELEGRAM_CHAT_ID"
+      bot-token: ${TELEGRAM_BOT_TOKEN:}
+      chat-id: ${TELEGRAM_CHAT_ID:}
     whatsapp:
       enabled: false
-      twilio-sid: "YOUR_TWILIO_ACCOUNT_SID"
-      twilio-token: "YOUR_TWILIO_AUTH_TOKEN"
-      from-number: "whatsapp:+1234567890"
-      to-number: "whatsapp:+1234567890"
+      twilio-sid: ${TWILIO_ACCOUNT_SID:}
+      twilio-token: ${TWILIO_AUTH_TOKEN:}
+      from-number: ${TWILIO_WHATSAPP_FROM:}
+      to-number: ${TWILIO_WHATSAPP_TO:}
   apis:
-    finnhub-key: "YOUR_FINNHUB_API_KEY"
-    newsapi-key: "YOUR_NEWSAPI_KEY"
+    finnhub-key: ${FINNHUB_API_KEY:}
+    newsapi-key: ${NEWSAPI_KEY:}
+    finnhub-base-url: ${FINNHUB_BASE_URL:https://finnhub.io/api/v1}
+    yahoo-base-url: ${YAHOO_FINANCE_BASE_URL:https://query1.finance.yahoo.com}
     timeout-seconds: 10
     max-retries: 2
   watchlist:
@@ -44,6 +47,11 @@ app:
   schedule:
     cron-expression: "0 */5 * * * *"  # Every 5 minutes for local testing
     timezone: "America/Chicago"
+
+management:
+  endpoint:
+    health:
+      show-details: never
 
 logging:
   level:
