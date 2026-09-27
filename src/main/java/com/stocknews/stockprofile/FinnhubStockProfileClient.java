@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stocknews.config.AppProperties;
 import com.stocknews.persistence.FinnhubStockProfile;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -18,6 +19,7 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class FinnhubStockProfileClient {
     private final RestClient restClient;
     private final AppProperties properties;
@@ -46,6 +48,8 @@ public class FinnhubStockProfileClient {
                         .body(String.class);
                 profiles.add(parseProfile(symbol, response));
             } catch (RestClientException exception) {
+                log.warn("Finnhub profile request failed for symbol {} ({})",
+                        symbol, exception.getClass().getSimpleName());
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                         "Finnhub profile lookup failed for " + symbol, exception);
             }
@@ -78,6 +82,8 @@ public class FinnhubStockProfileClient {
         } catch (ResponseStatusException exception) {
             throw exception;
         } catch (Exception exception) {
+            log.warn("Could not parse Finnhub profile for symbol {} ({})",
+                    symbol, exception.getClass().getSimpleName());
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "Could not parse Finnhub profile for " + symbol, exception);
         }

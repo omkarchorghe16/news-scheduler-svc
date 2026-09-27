@@ -1,11 +1,15 @@
-# Local development configuration example
-# Optional: copy to application-local.yml for machine-local overrides.
+# Local development configuration example for root/application-local.yml overrides.
 # Keep actual secrets out of this file when possible; export environment variables instead.
-# Run with: mvn spring-boot:run -Dspring-boot.run.arguments="--spring.profiles.active=local"
+# The local profile is the default; the packaged src/main/resources/application-local.yml
+# enables the H2 console at /h2-console.
 
 spring:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
   datasource:
-    url: jdbc:h2:./data/stocknews
+    url: jdbc:h2:file:./data/news-scheduler;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL
   jpa:
     hibernate:
       ddl-auto: update

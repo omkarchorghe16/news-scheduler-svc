@@ -12,12 +12,13 @@ A complete Java Spring Boot application that fetches daily stock market news for
 - **Portfolio Tracking**: Separate digest for configured portfolio symbols (Slack-only)
 - **On-Demand Triggers**: REST endpoints to manually trigger digests without waiting for schedule
 - **Stock Profiles**: Fetch Finnhub and Yahoo Finance company profiles and persist them separately in H2
+- **Development Standards**: Repository-specific Copilot instructions for coding, architecture, Spring Boot, and logging
 - **Configurable Everything**: @ConfigurationProperties binds all settings from environment variables
 
 ## Tech Stack
 
 - **Java 21**
-- **Spring Boot 3.3.0**
+- **Spring Boot 3.5.16**
 - **Maven**
 - **Spring Data JPA + H2 Database**
 - **Spring RestClient (6.1+)**
@@ -50,10 +51,20 @@ com/stocknews/
 │   └── WhatsAppNotifier.java       # Twilio WhatsApp API
 ├── persistence/
 │   ├── SentArticle.java            # JPA entity
-│   └── SentArticleRepository.java  # Spring Data JPA
+│   ├── FinnhubStockProfile.java    # Finnhub profile entity
+│   ├── YahooStockProfile.java      # Yahoo profile entity
+│   └── *Repository.java            # Spring Data JPA repositories
+├── stockprofile/
+│   ├── StockProfileService.java    # Profile fetch and persistence workflow
+│   └── *StockProfileClient.java    # Provider integrations
 └── web/
-    └── DigestTriggerController.java # REST endpoints
+    ├── DigestTriggerController.java
+    └── StockProfileController.java # REST endpoints
 ```
+
+Repository coding guidance lives in `.github/copilot-instructions.md` and the focused files in
+`.github/instructions/`. These set the expected coding, architecture, Spring Boot, and logging
+standards for future Copilot changes.
 
 ## Prerequisites
 
@@ -141,7 +152,7 @@ in the image, source repository, or plain deployment manifests. For CI tests, su
 through the CI platform's protected secrets; tests that mock providers do not need a live key.
 
 Credentials pasted into chat or other shared systems should be treated as exposed. Revoke/regenerate
-the Telegram bot token and API keys you just shared before using them again.
+credentials immediately if they are accidentally exposed.
 
 ### 1. Clone the Repository
 
@@ -182,14 +193,19 @@ mvn clean install
 
 ### 4. Run Locally
 
-**Default (production schedule: 9 AM weekdays)**
+**Run with the default local profile**
 ```bash
 mvn spring-boot:run
 ```
 
-**Local development (every 5 minutes for testing)**
+The default Spring profile is `local`. The H2 web console is enabled only for that profile and is
+available at `http://localhost:8080/h2-console`. Deployments should explicitly set a non-local profile
+(for example, `SPRING_PROFILES_ACTIVE=prod`) so the development console is not enabled.
+
+**Optional local schedule override (every 5 minutes)**
 ```bash
-mvn spring-boot:run -Dspring-boot.run.arguments="--spring.profiles.active=local"
+cp src/main/resources/application-local.yml.example application-local.yml
+mvn spring-boot:run
 ```
 
 ### 5. Verify the Application
@@ -374,7 +390,8 @@ app:
 
 ## Deduplication
 
-The service stores SHA-256 hashes of sent article URLs in an H2 in-memory database. Articles sent within the last **3 days** are excluded from future digests.
+The service stores SHA-256 hashes of sent article URLs in the persistent H2 database. Articles sent
+within the last **3 days** are excluded from future digests.
 
 Old records are automatically cleaned up on application startup. To manually clean up:
 
@@ -382,6 +399,50 @@ Edit `DigestService.java` and adjust:
 ```java
 private static final int DEDUP_DAYS = 3;  // Change to desired number
 ```
+
+## H2 Database
+
+The default datasource is a persistent H2 file database at `./data/news-scheduler` (relative to the
+directory from which the application is started). H2 stores the database files under `data/`,
+including `news-scheduler.mv.db`. The `data/` directory is ignored by Git.
+
+The profile endpoints create/update these tables:
+
+| Table | Contents |
+| --- | --- |
+| `FINNHUB_STOCK_PROFILES` | Finnhub company profile fields, market capitalization, and raw provider JSON |
+| `YAHOO_STOCK_PROFILES` | Yahoo company summary, sector, industry, employee count, and raw provider JSON |
+| `SENT_ARTICLES` | Article URL hashes used for digest deduplication |
+
+### Browse the database in IntelliJ IDEA
+
+1. Open **View → Tool Windows → Database**, then add a data source of type **H2**.
+2. Set the JDBC URL to `jdbc:h2:file:./data/news-scheduler;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL`.
+   Use `org.h2.Driver`, username `sa`, and an empty password. Resolve/download the H2 driver if prompted.
+3. Set the data source working directory to the project root (the directory containing `pom.xml`) if
+   IntelliJ does not resolve the relative `./data` path there.
+4. Click **Test Connection**, apply, and refresh the schema. Expand the `PUBLIC` schema and open either
+   stock profile table to view the saved rows and `UPDATED_AT` timestamps.
+
+You can also run SQL from the IDE console:
+
+```sql
+SELECT SYMBOL, NAME, INDUSTRY, MARKET_CAPITALIZATION, UPDATED_AT
+FROM FINNHUB_STOCK_PROFILES
+ORDER BY UPDATED_AT DESC;
+
+SELECT SYMBOL, NAME, SECTOR, INDUSTRY, FULL_TIME_EMPLOYEES, MARKET_CAPITALIZATION, UPDATED_AT
+FROM YAHOO_STOCK_PROFILES
+ORDER BY UPDATED_AT DESC;
+```
+
+### Local H2 web console
+
+The default `local` profile loads `src/main/resources/application-local.yml`, which enables the
+console at `http://localhost:8080/h2-console`. Log in with JDBC URL
+`jdbc:h2:file:./data/news-scheduler;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL`,
+user `sa`, and a blank password. If the app is running with another explicitly active profile, the
+console is off. Do not enable or expose it in shared or production environments.
 
 ## Running Tests
 
@@ -402,7 +463,11 @@ mvn test
 
 ## Logging
 
-The application logs all steps of the digest workflow to stdout/files:
+The application writes logs to the console (stdout). Profile endpoint logs include provider, request
+symbol count, and saved/returned record counts; provider failures log the symbol and exception type.
+API credentials, authorization data, and full provider payloads must not be logged.
+
+The digest workflow logs events similar to:
 
 ```
 2024-09-13 09:00:00 - Starting daily digest job

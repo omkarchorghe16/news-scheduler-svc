@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stocknews.config.AppProperties;
 import com.stocknews.persistence.YahooStockProfile;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -18,6 +19,7 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class YahooStockProfileClient {
     private final RestClient restClient;
     private final AppProperties properties;
@@ -39,6 +41,8 @@ public class YahooStockProfileClient {
                         .body(String.class);
                 profiles.add(parseProfile(symbol, response));
             } catch (RestClientException exception) {
+                log.warn("Yahoo Finance profile request failed for symbol {} ({})",
+                        symbol, exception.getClass().getSimpleName());
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                         "Yahoo Finance profile lookup failed for " + symbol, exception);
             }
@@ -81,6 +85,8 @@ public class YahooStockProfileClient {
         } catch (ResponseStatusException exception) {
             throw exception;
         } catch (Exception exception) {
+            log.warn("Could not parse Yahoo Finance profile for symbol {} ({})",
+                    symbol, exception.getClass().getSimpleName());
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "Could not parse Yahoo Finance profile for " + symbol, exception);
         }

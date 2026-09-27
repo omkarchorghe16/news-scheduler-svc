@@ -32,6 +32,8 @@ logs/
 .env.local
 application-local.yml
 application-local.yaml
+!src/main/resources/application-local.yml
+!src/test/resources/application-local.yml
 application-secrets.yml
 application-secrets.yaml
 
