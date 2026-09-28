@@ -1,10 +1,13 @@
 package com.stocknews.web;
 
 import com.stocknews.alphavantage.AlphaVantageOverviewService;
+import com.stocknews.fmp.FmpProfileService;
 import com.stocknews.persistence.AlphaVantageOverview;
+import com.stocknews.persistence.FmpStockProfile;
 import com.stocknews.persistence.FinnhubStockProfile;
 import com.stocknews.persistence.YahooStockProfile;
-import com.stocknews.stockprofile.StockProfileService;
+import com.stocknews.stockprofile.FinnhubStockProfileService;
+import com.stocknews.stockprofile.YahooStockProfileService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -25,14 +28,20 @@ class StockProfileControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private StockProfileService stockProfileService;
+    private FinnhubStockProfileService finnhubStockProfileService;
+
+    @MockitoBean
+    private YahooStockProfileService yahooStockProfileService;
 
     @MockitoBean
     private AlphaVantageOverviewService alphaVantageOverviewService;
 
+    @MockitoBean
+    private FmpProfileService fmpProfileService;
+
     @Test
     void fetchFinnhubProfilesAcceptsSymbolList() throws Exception {
-        when(stockProfileService.fetchAndSaveFinnhubProfiles(List.of("AAPL")))
+        when(finnhubStockProfileService.fetchAndSave(List.of("AAPL")))
                 .thenReturn(List.of(new FinnhubStockProfile()));
 
         mockMvc.perform(post("/api/stocks/finnhub/profiles")
@@ -40,12 +49,12 @@ class StockProfileControllerTest {
                         .content("{\"symbols\":[\"AAPL\"]}"))
                 .andExpect(status().isOk());
 
-        verify(stockProfileService).fetchAndSaveFinnhubProfiles(List.of("AAPL"));
+        verify(finnhubStockProfileService).fetchAndSave(List.of("AAPL"));
     }
 
     @Test
     void fetchYahooProfilesAcceptsSymbolList() throws Exception {
-        when(stockProfileService.fetchAndSaveYahooProfiles(List.of("AAPL", "MSFT")))
+        when(yahooStockProfileService.fetchAndSave(List.of("AAPL", "MSFT")))
                 .thenReturn(List.of(new YahooStockProfile(), new YahooStockProfile()));
 
         mockMvc.perform(post("/api/stocks/yahoo/profiles")
@@ -53,7 +62,7 @@ class StockProfileControllerTest {
                         .content("{\"symbols\":[\"AAPL\",\"MSFT\"]}"))
                 .andExpect(status().isOk());
 
-        verify(stockProfileService).fetchAndSaveYahooProfiles(List.of("AAPL", "MSFT"));
+        verify(yahooStockProfileService).fetchAndSave(List.of("AAPL", "MSFT"));
     }
 
     @Test
@@ -67,6 +76,19 @@ class StockProfileControllerTest {
                 .andExpect(status().isOk());
 
         verify(alphaVantageOverviewService).fetchAndSave(List.of("AAPL"));
+    }
+
+    @Test
+    void fetchFmpProfilesAcceptsSymbolList() throws Exception {
+        when(fmpProfileService.fetchAndSave(List.of("AAPL")))
+                .thenReturn(List.of(new FmpStockProfile()));
+
+        mockMvc.perform(post("/api/stocks/fmp/profiles")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"symbols\":[\"AAPL\"]}"))
+                .andExpect(status().isOk());
+
+        verify(fmpProfileService).fetchAndSave(List.of("AAPL"));
     }
 
     @Test

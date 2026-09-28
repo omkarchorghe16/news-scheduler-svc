@@ -24,6 +24,14 @@ spring:
     scheduling:
       enabled: true
 
+fmp:
+  # Keep the key in application-secrets.yml or set FMP_API_KEY in the environment.
+  base-url: ${FMP_BASE_URL:https://financialmodelingprep.com/stable}
+  api-key: ${FMP_API_KEY:}
+  daily-request-limit: ${FMP_DAILY_REQUEST_LIMIT:250}
+  us-exchanges-only: ${FMP_US_EXCHANGES_ONLY:true}
+  profile-cache-hours: ${FMP_PROFILE_CACHE_HOURS:24}
+
 app:
   notifications:
     # Secret-file property names map directly to app.notifications.* below.

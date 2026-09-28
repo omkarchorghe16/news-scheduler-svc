@@ -2,10 +2,13 @@ package com.stocknews.web;
 
 import com.stocknews.persistence.FinnhubStockProfile;
 import com.stocknews.persistence.AlphaVantageOverview;
+import com.stocknews.persistence.FmpStockProfile;
 import com.stocknews.persistence.YahooStockProfile;
 import com.stocknews.alphavantage.AlphaVantageOverviewService;
-import com.stocknews.stockprofile.StockProfileService;
+import com.stocknews.fmp.FmpProfileService;
+import com.stocknews.stockprofile.FinnhubStockProfileService;
 import com.stocknews.stockprofile.StockSymbolsRequest;
+import com.stocknews.stockprofile.YahooStockProfileService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,8 +29,10 @@ import java.util.List;
 @Slf4j
 @Tag(name = "Stock Profiles", description = "Fetch and store provider company profiles")
 public class StockProfileController {
-    private final StockProfileService stockProfileService;
+    private final FinnhubStockProfileService finnhubStockProfileService;
+    private final YahooStockProfileService yahooStockProfileService;
     private final AlphaVantageOverviewService alphaVantageOverviewService;
+    private final FmpProfileService fmpProfileService;
 
     @PostMapping("/finnhub/profiles")
     @Operation(summary = "Fetch Finnhub company profiles", description = "Fetches company profiles and stores them in PostgreSQL.")
@@ -39,7 +44,7 @@ public class StockProfileController {
     })
     public List<FinnhubStockProfile> fetchFinnhubProfiles(@Valid @RequestBody StockSymbolsRequest request) {
         log.info("Received Finnhub stock profile request for {} symbols", request.symbols().size());
-        List<FinnhubStockProfile> profiles = stockProfileService.fetchAndSaveFinnhubProfiles(request.symbols());
+        List<FinnhubStockProfile> profiles = finnhubStockProfileService.fetchAndSave(request.symbols());
         log.info("Returned {} Finnhub stock profiles", profiles.size());
         return profiles;
     }
@@ -48,11 +53,12 @@ public class StockProfileController {
     @Operation(summary = "Fetch Yahoo Finance company profiles", description = "Fetches business summaries and profile details and stores them in PostgreSQL.")
     public List<YahooStockProfile> fetchYahooProfiles(@Valid @RequestBody StockSymbolsRequest request) {
         log.info("Received Yahoo Finance stock profile request for {} symbols", request.symbols().size());
-        List<YahooStockProfile> profiles = stockProfileService.fetchAndSaveYahooProfiles(request.symbols());
+        List<YahooStockProfile> profiles = yahooStockProfileService.fetchAndSave(request.symbols());
         log.info("Returned {} Yahoo Finance stock profiles", profiles.size());
         return profiles;
     }
 
+    //TODO this endpoint only working for 1 symbol at a time, due to API Limits.
     @PostMapping("/alphavantage/overview")
     @Operation(summary = "Fetch Alpha Vantage company overviews",
             description = "Calls the Alpha Vantage OVERVIEW function for each symbol and stores the results in PostgreSQL. Provider limits apply: 25 calls per day and 5 calls per minute.")
@@ -68,5 +74,23 @@ public class StockProfileController {
         List<AlphaVantageOverview> overviews = alphaVantageOverviewService.fetchAndSave(request.symbols());
         log.info("Returned {} Alpha Vantage overviews", overviews.size());
         return overviews;
+    }
+
+    @PostMapping("/fmp/profiles")
+    @Operation(summary = "Fetch Financial Modeling Prep company profiles",
+            description = "Fetches US stock company profiles using FMP and stores all returned profile fields and the raw provider record in PostgreSQL.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Profiles fetched and stored"),
+            @ApiResponse(responseCode = "400", description = "Invalid symbol list or non-US symbol on the Basic plan"),
+            @ApiResponse(responseCode = "404", description = "FMP returned no profile for a symbol"),
+            @ApiResponse(responseCode = "429", description = "FMP daily request quota exceeded"),
+            @ApiResponse(responseCode = "503", description = "FMP API key is not configured"),
+            @ApiResponse(responseCode = "502", description = "FMP request failed")
+    })
+    public List<FmpStockProfile> fetchFmpProfiles(@Valid @RequestBody StockSymbolsRequest request) {
+        log.info("Received FMP stock profile request for {} symbols", request.symbols().size());
+        List<FmpStockProfile> profiles = fmpProfileService.fetchAndSave(request.symbols());
+        log.info("Returned {} FMP stock profiles", profiles.size());
+        return profiles;
     }
 }

@@ -27,6 +27,12 @@ app:
     yahoo-base-url: ${YAHOO_FINANCE_BASE_URL:https://query1.finance.yahoo.com}
     timeout-seconds: 10
     max-retries: 2
+fmp:
+  api-key: ${FMP_API_KEY:}
+  base-url: ${FMP_BASE_URL:https://financialmodelingprep.com/stable}
+  daily-request-limit: ${FMP_DAILY_REQUEST_LIMIT:250}
+  us-exchanges-only: ${FMP_US_EXCHANGES_ONLY:true}
+  profile-cache-hours: ${FMP_PROFILE_CACHE_HOURS:24}
   watchlist:
     us-symbols:
       - AAPL

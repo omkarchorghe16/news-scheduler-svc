@@ -215,6 +215,42 @@
           "response": []
         },
         {
+          "name": "Fetch FMP Stock Profiles (save to PostgreSQL)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {\n  pm.response.to.have.status(200);\n});\n",
+                  "pm.test(\"Returns an FMP profile for each requested symbol\", function () {\n  var profiles = pm.response.json();\n  pm.expect(profiles).to.be.an(\"array\").with.lengthOf(2);\n  pm.expect(profiles.map(function (profile) { return profile.symbol; })).to.eql([\"AAPL\", \"MSFT\"]);\n});\n",
+                  "pm.test(\"Profile includes raw provider data\", function () {\n  pm.expect(pm.response.json()[0]).to.have.property(\"rawPayload\");\n});\n"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbols\": [\"AAPL\", \"MSFT\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/stocks/fmp/profiles"
+          },
+          "response": []
+        },
+        {
           "name": "Reject Empty Stock Symbol List",
           "event": [
             {

@@ -1,5 +1,5 @@
 $kind: http-request
-url: "{{baseUrl}}/api/stocks/finnhub/profiles"
+url: "{{baseUrl}}/api/stocks/fmp/profiles"
 method: POST
 headers:
   Content-Type: application/json
@@ -16,17 +16,14 @@ scripts:
         pm.response.to.have.status(200);
       });
 
-      pm.test("Returns a profile for each requested symbol", function () {
+      pm.test("Returns an FMP profile for each requested symbol", function () {
         var profiles = pm.response.json();
         pm.expect(profiles).to.be.an("array").with.lengthOf(2);
         pm.expect(profiles.map(function (profile) { return profile.symbol; })).to.eql(["AAPL", "MSFT"]);
       });
 
-      pm.test("Finnhub profile has expected fields", function () {
-        var profile = pm.response.json()[0];
-        ["name", "industry", "ipoDate", "marketCapitalization", "logo", "updatedAt"].forEach(function (field) {
-          pm.expect(profile).to.have.property(field);
-        });
+      pm.test("Profile includes raw provider data", function () {
+        pm.expect(pm.response.json()[0]).to.have.property("rawPayload");
       });
     language: text/javascript
-order: 1000
+order: 4000

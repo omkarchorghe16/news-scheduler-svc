@@ -55,12 +55,17 @@ com/stocknews/
 │   ├── *Overview.java, *StockProfile.java, SentArticle.java  # Shared JPA entities
 │   └── postgres/
 │       └── *Repository.java       # PostgreSQL Spring Data repositories
+├── fmp/
+│   ├── FmpProfileClient.java      # FMP HTTP request and response parsing
+│   └── FmpProfileService.java     # FMP quota tracking and PostgreSQL persistence
 ├── alphavantage/
 │   ├── AlphaVantageOverviewClient.java
 │   ├── AlphaVantageOverviewService.java
 │   └── AlphaVantageRateLimiter.java
 ├── stockprofile/
-│   ├── StockProfileService.java    # Profile fetch and persistence workflow
+│   ├── FinnhubStockProfileService.java
+│   ├── YahooStockProfileService.java
+│   ├── StockSymbolNormalizer.java
 │   └── *StockProfileClient.java    # Provider integrations
 └── web/
     ├── DigestTriggerController.java
@@ -114,6 +119,7 @@ shell before starting the app:
 export FINNHUB_API_KEY="your-finnhub-key"
 export NEWSAPI_KEY="your-newsapi-key"
 export ALPHA_VANTAGE_API_KEY="your-alpha-vantage-key"
+export FMP_API_KEY="your-fmp-key"
 export POSTGRES_URL="jdbc:postgresql://localhost:5432/news_scheduler"
 export POSTGRES_USER="news_scheduler"
 export POSTGRES_PASSWORD="your-local-postgres-password"
@@ -255,6 +261,10 @@ curl -X POST http://localhost:8080/api/stocks/yahoo/profiles \
 curl -X POST http://localhost:8080/api/stocks/alphavantage/overview \
   -H "Content-Type: application/json" \
   -d '{"symbols":["AAPL","MSFT"]}'
+
+curl -X POST http://localhost:8080/api/stocks/fmp/profiles \
+  -H "Content-Type: application/json" \
+  -d '{"symbols":["AAPL","MSFT"]}'
 ```
 
 The Finnhub response includes company name, industry, IPO date, market capitalization (in millions),
@@ -264,6 +274,15 @@ employee count, company/address details, market capitalization, and the raw prov
 Alpha Vantage's OVERVIEW includes description, sector, industry, market capitalization, P/E, EPS,
 margins, and other financial metrics when returned by the provider. Profiles are upserted by symbol
 in provider-specific PostgreSQL tables.
+
+FMP profiles use `FMP_API_KEY` and the `https://financialmodelingprep.com/stable` base URL by
+default. You can override it with `FMP_BASE_URL`. The service enforces the configurable
+`FMP_DAILY_REQUEST_LIMIT` (default 250 calls in a rolling 24-hour window), tracked in PostgreSQL.
+Profiles are reused from PostgreSQL for `FMP_PROFILE_CACHE_HOURS` (default 24); set it to `0` to
+fetch fresh data on every request.
+FMP Basic/free accounts are US-exchange-only; requests containing `.NS` or `.BO` are rejected by
+default. Set `FMP_US_EXCHANGES_ONLY=false` only when your FMP plan supports those symbols.
+Every FMP profile record includes the complete raw provider record in `raw_payload`.
 
 Finnhub requests are spaced to stay within the provider's 60-calls-per-minute limit for this endpoint.
 Yahoo Finance is an unofficial API and may rate-limit requests or change its response format.
@@ -481,6 +500,8 @@ Hibernate creates or updates these PostgreSQL tables from the corresponding JPA 
 | `YAHOO_STOCK_PROFILES` | Yahoo company summary, sector, industry, employee count, and raw provider JSON |
 | `ALPHA_VANTAGE_OVERVIEWS` | Alpha Vantage description and financial metrics |
 | `ALPHA_VANTAGE_API_CALLS` | Persisted quota history for the daily/minute provider limits |
+| `FMP_STOCK_PROFILES` | FMP profile fields and complete raw provider records |
+| `FMP_API_CALLS` | FMP requests tracked for the rolling daily quota |
 | `SENT_ARTICLES` | Article URL hashes used for digest deduplication |
 
 ### Browse PostgreSQL data in IntelliJ IDEA or pgAdmin
@@ -493,6 +514,8 @@ tables or use the SQL console:
 SELECT * FROM finnhub_stock_profiles ORDER BY updated_at DESC;
 SELECT * FROM yahoo_stock_profiles ORDER BY updated_at DESC;
 SELECT * FROM alpha_vantage_overviews ORDER BY updated_at DESC;
+SELECT * FROM fmp_stock_profiles ORDER BY updated_at DESC;
+SELECT called_at FROM fmp_api_calls ORDER BY called_at DESC;
 SELECT * FROM sent_articles ORDER BY sent_at DESC;
 ```
 

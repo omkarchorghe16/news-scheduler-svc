@@ -60,10 +60,11 @@ public class AlphaVantageOverviewClient {
     private AlphaVantageOverview parseOverview(String symbol, String response) {
         try {
             JsonNode root = objectMapper.readTree(response);
-            if (root.has("Note") || root.has("Information")) {
+            log.info("Alpha Vantage overview response: {}", root);
+            /*if (root.has("Note") || root.has("Information")) {
                 throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
                         "Alpha Vantage rate limit reached; wait before retrying");
-            }
+            }*/
             if (root.has("Error Message")) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Alpha Vantage did not recognize symbol " + symbol);
