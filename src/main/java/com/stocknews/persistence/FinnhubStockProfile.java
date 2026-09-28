@@ -5,7 +5,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -47,7 +46,7 @@ public class FinnhubStockProfile {
     private String website;
     private String industry;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String rawPayload;
 
     @Column(nullable = false)

@@ -5,7 +5,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -45,10 +44,10 @@ public class YahooStockProfile {
     @Column(precision = 24, scale = 6)
     private BigDecimal marketCapitalization;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String businessSummary;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String rawPayload;
 
     @Column(nullable = false)

@@ -7,11 +7,13 @@ A complete Java Spring Boot application that fetches daily stock market news for
 - **Scheduled Digest**: Automatic daily news digest (configurable cron, default: 9 AM weekdays)
 - **Multi-Market Support**: Separate fetches for US (NYSE/NASDAQ) and India (NSE) markets
 - **Multiple News Sources**: Integrates Finnhub and NewsAPI.org
-- **Smart Deduplication**: SHA-256 based dedup with 3-day history stored in H2 database
+- **Smart Deduplication**: SHA-256 based dedup with 3-day history stored in PostgreSQL
 - **Multi-Channel Notifications**: Slack, Telegram, WhatsApp (Twilio)
 - **Portfolio Tracking**: Separate digest for configured portfolio symbols (Slack-only)
 - **On-Demand Triggers**: REST endpoints to manually trigger digests without waiting for schedule
-- **Stock Profiles**: Fetch Finnhub and Yahoo Finance company profiles and persist them separately in H2
+- **Stock Profiles**: Fetch Finnhub, Yahoo Finance, and Alpha Vantage company information and persist it in PostgreSQL
+- **API Documentation**: Interactive Swagger UI and generated OpenAPI specification
+- **Database**: PostgreSQL for application data; H2 is used only by tests
 - **Development Standards**: Repository-specific Copilot instructions for coding, architecture, Spring Boot, and logging
 - **Configurable Everything**: @ConfigurationProperties binds all settings from environment variables
 
@@ -20,7 +22,7 @@ A complete Java Spring Boot application that fetches daily stock market news for
 - **Java 21**
 - **Spring Boot 3.5.16**
 - **Maven**
-- **Spring Data JPA + H2 Database**
+- **Spring Data JPA + PostgreSQL** (H2 for tests)
 - **Spring RestClient (6.1+)**
 - **Lombok**
 - **SLF4J Logging**
@@ -31,8 +33,8 @@ A complete Java Spring Boot application that fetches daily stock market news for
 com/stocknews/
 ├── StockNewsApplication.java
 ├── config/
-│   ├── AppProperties.java          # @ConfigurationProperties for all external config
-│   └── RestClientConfig.java       # RestClient bean with timeout/retry config
+│   ├── AppProperties.java
+│   └── RestClientConfig.java
 ├── scheduler/
 │   └── DigestScheduler.java        # Scheduled cron job
 ├── digest/
@@ -44,16 +46,19 @@ com/stocknews/
 │   ├── NewsSourceClient.java       # Interface
 │   ├── FinnhubNewsClient.java      # Finnhub API integration
 │   └── NewsApiClient.java          # NewsAPI.org integration
-├── notify/
+├── notification/
 │   ├── Notifier.java               # Interface
 │   ├── SlackNotifier.java          # Slack Webhook
 │   ├── TelegramNotifier.java       # Telegram Bot API
 │   └── WhatsAppNotifier.java       # Twilio WhatsApp API
 ├── persistence/
-│   ├── SentArticle.java            # JPA entity
-│   ├── FinnhubStockProfile.java    # Finnhub profile entity
-│   ├── YahooStockProfile.java      # Yahoo profile entity
-│   └── *Repository.java            # Spring Data JPA repositories
+│   ├── *Overview.java, *StockProfile.java, SentArticle.java  # Shared JPA entities
+│   └── postgres/
+│       └── *Repository.java       # PostgreSQL Spring Data repositories
+├── alphavantage/
+│   ├── AlphaVantageOverviewClient.java
+│   ├── AlphaVantageOverviewService.java
+│   └── AlphaVantageRateLimiter.java
 ├── stockprofile/
 │   ├── StockProfileService.java    # Profile fetch and persistence workflow
 │   └── *StockProfileClient.java    # Provider integrations
@@ -78,16 +83,20 @@ standards for future Copilot changes.
    - Sign up: https://newsapi.org/
    - Get API key from dashboard
 
-3. **Slack** (optional for Slack notifications)
+3. **Alpha Vantage** (optional, for company financial overviews)
+   - Create an API key: https://www.alphavantage.co/support/#api-key
+   - Free-tier quota used by this service: 25 requests/day and 5 requests/minute
+
+4. **Slack** (optional for Slack notifications)
    - Create an Incoming Webhook: https://api.slack.com/apps/
    - Webhook URL format: `https://hooks.slack.com/services/YOUR/WEBHOOK/URL`
    - Optionally create a second webhook for portfolio channel
 
-4. **Telegram** (optional for Telegram notifications)
+5. **Telegram** (optional for Telegram notifications)
    - Create a bot via @BotFather on Telegram
    - Get Bot Token and Chat ID
 
-5. **Twilio WhatsApp** (optional for WhatsApp notifications)
+6. **Twilio WhatsApp** (optional for WhatsApp notifications)
    - Sign up: https://www.twilio.com/
    - Set up WhatsApp Sandbox: https://www.twilio.com/console/sms/whatsapp/learn
    - Get Account SID, Auth Token, and WhatsApp numbers
@@ -104,6 +113,10 @@ shell before starting the app:
 ```bash
 export FINNHUB_API_KEY="your-finnhub-key"
 export NEWSAPI_KEY="your-newsapi-key"
+export ALPHA_VANTAGE_API_KEY="your-alpha-vantage-key"
+export POSTGRES_URL="jdbc:postgresql://localhost:5432/news_scheduler"
+export POSTGRES_USER="news_scheduler"
+export POSTGRES_PASSWORD="your-local-postgres-password"
 mvn spring-boot:run
 ```
 
@@ -198,9 +211,8 @@ mvn clean install
 mvn spring-boot:run
 ```
 
-The default Spring profile is `local`. The H2 web console is enabled only for that profile and is
-available at `http://localhost:8080/h2-console`. Deployments should explicitly set a non-local profile
-(for example, `SPRING_PROFILES_ACTIVE=prod`) so the development console is not enabled.
+The default Spring profile is `local`. PostgreSQL must be running and the `news_scheduler`
+database/user must exist; see [Database setup](#database-setup).
 
 **Optional local schedule override (every 5 minutes)**
 ```bash
@@ -222,9 +234,14 @@ Stock News Scheduler Service is running
 
 ## REST Endpoints
 
+### Swagger / OpenAPI
+
+With the application running, browse to `http://localhost:8080/swagger-ui/index.html` for interactive
+API documentation. The generated OpenAPI JSON is available at `http://localhost:8080/v3/api-docs`.
+
 ### Stock Profiles
 
-Fetch one or more symbols by POSTing a JSON list. Each provider has a separate endpoint and H2 table:
+Fetch one or more symbols by POSTing a JSON list. Each provider has a separate endpoint:
 
 ```bash
 curl -X POST http://localhost:8080/api/stocks/finnhub/profiles \
@@ -234,20 +251,30 @@ curl -X POST http://localhost:8080/api/stocks/finnhub/profiles \
 curl -X POST http://localhost:8080/api/stocks/yahoo/profiles \
   -H "Content-Type: application/json" \
   -d '{"symbols":["AAPL","MSFT"]}'
+
+curl -X POST http://localhost:8080/api/stocks/alphavantage/overview \
+  -H "Content-Type: application/json" \
+  -d '{"symbols":["AAPL","MSFT"]}'
 ```
 
 The Finnhub response includes company name, industry, IPO date, market capitalization (in millions),
 logo, country, currency, exchange, shares outstanding, phone, and website. Finnhub's `stock/profile2`
 does not provide a business summary. Yahoo Finance provides business summary, sector, industry,
 employee count, company/address details, market capitalization, and the raw provider payload.
-Profiles are upserted by symbol in `finnhub_stock_profiles` and `yahoo_stock_profiles`.
+Alpha Vantage's OVERVIEW includes description, sector, industry, market capitalization, P/E, EPS,
+margins, and other financial metrics when returned by the provider. Profiles are upserted by symbol
+in provider-specific PostgreSQL tables.
 
 Finnhub requests are spaced to stay within the provider's 60-calls-per-minute limit for this endpoint.
 Yahoo Finance is an unofficial API and may rate-limit requests or change its response format.
-The Postman collection includes success/data assertions for both providers and a validation test for
-an empty symbol list. Import `postman/stock-news-scheduler.postman_collection.json`, select the local
-environment, start the app with `FINNHUB_API_KEY` set to run the Finnhub request, then run the
-Stock Profiles folder. The Yahoo request does not require a key.
+Alpha Vantage requests are limited to 25 per day and 5 per minute. The daily count is persisted in
+PostgreSQL, and requests wait when the per-minute quota is reached. Each symbol consumes one call.
+Create your own API key at [alphavantage.co](https://www.alphavantage.co/support/#api-key) and set
+`ALPHA_VANTAGE_API_KEY` in your environment or secret store.
+The Postman collection includes profile requests for all three providers and a validation test for an
+empty symbol list. Import `postman/stock-news-scheduler.postman_collection.json`, select the local
+environment, configure the Finnhub and Alpha Vantage API keys in the running application to run those
+requests, then run the Stock Profiles folder. The Yahoo request does not require a key.
 
 ### On-Demand Triggers
 
@@ -307,10 +334,12 @@ app:
       from-number: ${TWILIO_WHATSAPP_FROM}
       to-number: ${TWILIO_WHATSAPP_TO}
   apis:
-    finnhub-key: ${FINNHUB_API_KEY}
-    newsapi-key: ${NEWSAPI_KEY}
+    finnhub-key: ${FINNHUB_API_KEY:}
+    newsapi-key: ${NEWSAPI_KEY:}
     finnhub-base-url: ${FINNHUB_BASE_URL:https://finnhub.io/api/v1}
     yahoo-base-url: ${YAHOO_FINANCE_BASE_URL:https://query1.finance.yahoo.com}
+    alpha-vantage-key: ${ALPHA_VANTAGE_API_KEY:}
+    alpha-vantage-base-url: ${ALPHA_VANTAGE_BASE_URL:https://www.alphavantage.co/query}
     timeout-seconds: 5  # HTTP timeout
     max-retries: 1  # Retry attempts
   watchlist:
@@ -357,11 +386,36 @@ Do not paste keys into Git. Configure them as environment variables before start
 ```bash
 export FINNHUB_API_KEY="paste-your-finnhub-key-here"
 export NEWSAPI_KEY="paste-your-newsapi-key-here" # optional
+export ALPHA_VANTAGE_API_KEY="paste-your-alpha-vantage-key-here" # optional
 mvn spring-boot:run
 ```
 
+For local development, you can instead create an untracked `application-secrets.yml` in the project
+root. This filename is in `.gitignore` and is imported by the application. Example:
+
+```yaml
+app:
+  apis:
+    finnhub-key: "your-finnhub-key"
+    newsapi-key: "your-newsapi-key"
+    alpha-vantage-key: "your-alpha-vantage-key"
+  notifications:
+    telegram:
+      bot-token: "your-telegram-bot-token"
+      chat-id: "your-telegram-chat-id"
+spring:
+  datasource:
+    username: "your-postgres-user"
+    password: "your-postgres-password"
+```
+
+Never commit this local file. For deployed dev/test environments, add these as environment
+variables/secrets in the deployment platform's secret manager or CI/CD environment configuration;
+do not package `application-secrets.yml` into the deployment artifact.
+
 In IntelliJ IDEA, open **Run | Edit Configurations**, select `StockNewsApplication`, and add
-`FINNHUB_API_KEY=...` (and optionally `NEWSAPI_KEY=...`) under **Environment variables**.
+`POSTGRES_USER=...`, `POSTGRES_PASSWORD=...`, and any provider variables such as
+`FINNHUB_API_KEY=...`, `NEWSAPI_KEY=...`, or `ALPHA_VANTAGE_API_KEY=...` under **Environment variables**.
 The placeholders in `src/main/resources/application.yml` read these values automatically.
 
 The default schedule runs once at 09:00 America/Chicago on weekdays; it is not a continuous
@@ -390,8 +444,8 @@ app:
 
 ## Deduplication
 
-The service stores SHA-256 hashes of sent article URLs in the persistent H2 database. Articles sent
-within the last **3 days** are excluded from future digests.
+The service stores SHA-256 hashes of sent article URLs in PostgreSQL.
+Articles sent within the last **3 days** are excluded from future digests.
 
 Old records are automatically cleaned up on application startup. To manually clean up:
 
@@ -400,49 +454,47 @@ Edit `DigestService.java` and adjust:
 private static final int DEDUP_DAYS = 3;  // Change to desired number
 ```
 
-## H2 Database
+## Database setup
 
-The default datasource is a persistent H2 file database at `./data/news-scheduler` (relative to the
-directory from which the application is started). H2 stores the database files under `data/`,
-including `news-scheduler.mv.db`. The `data/` directory is ignored by Git.
+The application reads and writes data through Spring Data JPA repositories in
+`com.stocknews.persistence.postgres`, using the PostgreSQL datasource. Hibernate creates or updates
+the PostgreSQL tables from the JPA entities at startup. H2 is used only for automated tests.
 
-The profile endpoints create/update these tables:
+Create a PostgreSQL database and user using pgAdmin or `psql`, for example:
+
+```sql
+CREATE USER news_scheduler WITH PASSWORD 'set-a-local-password';
+CREATE DATABASE news_scheduler OWNER news_scheduler;
+```
+
+Set `POSTGRES_URL`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` in the shell/IDE before running. For
+example, use `jdbc:postgresql://localhost:5432/news_scheduler` if you created the database above.
+The application writes to the database in the effective `POSTGRES_URL` (including overrides in
+`application-secrets.yml`); inspect that exact database in pgAdmin or IntelliJ. Do not put credentials
+into committed configuration. Hibernate updates PostgreSQL tables on startup.
+
+Hibernate creates or updates these PostgreSQL tables from the corresponding JPA entities:
 
 | Table | Contents |
 | --- | --- |
 | `FINNHUB_STOCK_PROFILES` | Finnhub company profile fields, market capitalization, and raw provider JSON |
 | `YAHOO_STOCK_PROFILES` | Yahoo company summary, sector, industry, employee count, and raw provider JSON |
+| `ALPHA_VANTAGE_OVERVIEWS` | Alpha Vantage description and financial metrics |
+| `ALPHA_VANTAGE_API_CALLS` | Persisted quota history for the daily/minute provider limits |
 | `SENT_ARTICLES` | Article URL hashes used for digest deduplication |
 
-### Browse the database in IntelliJ IDEA
+### Browse PostgreSQL data in IntelliJ IDEA or pgAdmin
 
-1. Open **View → Tool Windows → Database**, then add a data source of type **H2**.
-2. Set the JDBC URL to `jdbc:h2:file:./data/news-scheduler;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL`.
-   Use `org.h2.Driver`, username `sa`, and an empty password. Resolve/download the H2 driver if prompted.
-3. Set the data source working directory to the project root (the directory containing `pom.xml`) if
-   IntelliJ does not resolve the relative `./data` path there.
-4. Click **Test Connection**, apply, and refresh the schema. Expand the `PUBLIC` schema and open either
-   stock profile table to view the saved rows and `UPDATED_AT` timestamps.
-
-You can also run SQL from the IDE console:
+Add a PostgreSQL data source matching the effective `POSTGRES_URL`, username, and password from the
+running application. Refresh its `public` schema, then open the profile
+tables or use the SQL console:
 
 ```sql
-SELECT SYMBOL, NAME, INDUSTRY, MARKET_CAPITALIZATION, UPDATED_AT
-FROM FINNHUB_STOCK_PROFILES
-ORDER BY UPDATED_AT DESC;
-
-SELECT SYMBOL, NAME, SECTOR, INDUSTRY, FULL_TIME_EMPLOYEES, MARKET_CAPITALIZATION, UPDATED_AT
-FROM YAHOO_STOCK_PROFILES
-ORDER BY UPDATED_AT DESC;
+SELECT * FROM finnhub_stock_profiles ORDER BY updated_at DESC;
+SELECT * FROM yahoo_stock_profiles ORDER BY updated_at DESC;
+SELECT * FROM alpha_vantage_overviews ORDER BY updated_at DESC;
+SELECT * FROM sent_articles ORDER BY sent_at DESC;
 ```
-
-### Local H2 web console
-
-The default `local` profile loads `src/main/resources/application-local.yml`, which enables the
-console at `http://localhost:8080/h2-console`. Log in with JDBC URL
-`jdbc:h2:file:./data/news-scheduler;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL`,
-user `sa`, and a blank password. If the app is running with another explicitly active profile, the
-console is off. Do not enable or expose it in shared or production environments.
 
 ## Running Tests
 
@@ -510,8 +562,7 @@ logging:
 - Confirm market symbols in watchlist are correct
 
 ### Deduplication not working
-- Restart the application to clear H2 in-memory database
-- Check that `SentArticleRepository` is saving records
+- Check that `SentArticleRepository` is saving records to PostgreSQL
 
 ### WhatsApp messages not sending
 - Confirm WhatsApp is enabled: `app.notifications.whatsapp.enabled=true`
@@ -546,7 +597,7 @@ logging:
                    ▼
           ┌──────────────────┐
           │ Dedup (SHA-256)  │◄──────┐
-          │ vs H2 Database   │       │
+          │ vs PostgreSQL    │       │
           └────────┬─────────┘       │
                    │         ┌───────┴────────┐
                    │         │  SentArticle   │

@@ -107,7 +107,7 @@
       "name": "Stock Profiles",
       "item": [
         {
-          "name": "Fetch Finnhub Profiles (and save to H2)",
+          "name": "Fetch Finnhub Profiles (save to PostgreSQL)",
           "event": [
             {
               "listen": "test",
@@ -143,7 +143,7 @@
           "response": []
         },
         {
-          "name": "Fetch Yahoo Finance Profiles (and save to H2)",
+          "name": "Fetch Yahoo Finance Profiles (save to PostgreSQL)",
           "event": [
             {
               "listen": "test",
@@ -175,6 +175,42 @@
               }
             },
             "url": "{{baseUrl}}/api/stocks/yahoo/profiles"
+          },
+          "response": []
+        },
+        {
+          "name": "Fetch Alpha Vantage Overviews (save to PostgreSQL)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {\n  pm.response.to.have.status(200);\n});\n",
+                  "pm.test(\"Returns an overview for each requested symbol\", function () {\n  var overviews = pm.response.json();\n  pm.expect(overviews).to.be.an(\"array\").with.lengthOf(2);\n  pm.expect(overviews.map(function (overview) { return overview.symbol; })).to.eql([\"AAPL\", \"MSFT\"]);\n});\n",
+                  "pm.test(\"Alpha Vantage overview has expected fields\", function () {\n  var overview = pm.response.json()[0];\n  [\"name\", \"description\", \"sector\", \"industry\", \"marketCapitalization\", \"peRatio\", \"eps\", \"updatedAt\"].forEach(function (field) {\n    pm.expect(overview).to.have.property(field);\n  });\n});\n"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbols\": [\"AAPL\", \"MSFT\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/stocks/alphavantage/overview"
           },
           "response": []
         },

@@ -15,3 +15,5 @@ applyTo: "**/*.java"
   and rethrow/propagate it when the request must fail.
 - Keep log messages parameterized (`log.info("Fetched {} profiles", count)`).
 - Avoid logging entire request objects or lists when a count or a sanitized identifier is sufficient.
+- Log provider throttling and persistence mirror failures with provider/database context, but omit
+  API keys and credentials even when they appear in query parameters or exception messages.

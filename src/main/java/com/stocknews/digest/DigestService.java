@@ -3,11 +3,12 @@ package com.stocknews.digest;
 import com.stocknews.news.FinnhubNewsClient;
 import com.stocknews.news.NewsApiClient;
 import com.stocknews.news.NewsItem;
-import com.stocknews.notify.SlackNotifier;
-import com.stocknews.notify.TelegramNotifier;
-import com.stocknews.notify.WhatsAppNotifier;
+import com.stocknews.notification.SlackNotifier;
+import com.stocknews.notification.TelegramNotifier;
+import com.stocknews.notification.WhatsAppNotifier;
+import com.stocknews.logging.ExceptionLog;
 import com.stocknews.persistence.SentArticle;
-import com.stocknews.persistence.SentArticleRepository;
+import com.stocknews.persistence.postgres.SentArticleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -163,7 +164,7 @@ public class DigestService {
             byte[] hash = digest.digest(url.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException e) {
-            log.error("SHA-256 algorithm not available", e);
+            log.error("SHA-256 algorithm not available:\n{}", ExceptionLog.stackTrace(e));
             return url; // Fallback: use URL as-is
         }
     }

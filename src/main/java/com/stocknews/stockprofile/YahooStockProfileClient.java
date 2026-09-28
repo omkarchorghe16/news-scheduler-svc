@@ -3,6 +3,7 @@ package com.stocknews.stockprofile;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stocknews.config.AppProperties;
+import com.stocknews.logging.ExceptionLog;
 import com.stocknews.persistence.YahooStockProfile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,8 +42,8 @@ public class YahooStockProfileClient {
                         .body(String.class);
                 profiles.add(parseProfile(symbol, response));
             } catch (RestClientException exception) {
-                log.warn("Yahoo Finance profile request failed for symbol {} ({})",
-                        symbol, exception.getClass().getSimpleName());
+                log.error("Yahoo Finance profile request failed for symbol {}:\n{}",
+                        symbol, ExceptionLog.stackTrace(exception));
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                         "Yahoo Finance profile lookup failed for " + symbol, exception);
             }
@@ -83,10 +84,12 @@ public class YahooStockProfileClient {
             profile.setRawPayload(response);
             return profile;
         } catch (ResponseStatusException exception) {
+            log.error("Yahoo Finance profile processing failed for symbol {}:\n{}",
+                    symbol, ExceptionLog.stackTrace(exception));
             throw exception;
         } catch (Exception exception) {
-            log.warn("Could not parse Yahoo Finance profile for symbol {} ({})",
-                    symbol, exception.getClass().getSimpleName());
+            log.error("Could not parse Yahoo Finance profile for symbol {}:\n{}",
+                    symbol, ExceptionLog.stackTrace(exception));
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "Could not parse Yahoo Finance profile for " + symbol, exception);
         }

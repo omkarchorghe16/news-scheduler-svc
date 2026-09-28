@@ -17,3 +17,8 @@ applyTo: "**/*.java"
   explicit and safe for repeated requests.
 - Keep dev-only tools such as the H2 console disabled by default and enable them only in local config.
 - Test web mappings with MockMvc and isolate provider/database behavior in appropriate tests.
+- Document every REST API in OpenAPI annotations and keep `/v3/api-docs` and Swagger UI current.
+- Configure PostgreSQL as the primary JPA datasource and H2 as a separate mirror datasource; avoid
+  relying on implicit Spring Boot datasource auto-configuration for the mirror.
+- External-provider rate limits must be enforced before issuing calls. Count durable daily quotas
+  from persisted calls where possible so application restarts do not reset the daily allowance.

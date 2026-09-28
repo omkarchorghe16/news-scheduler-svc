@@ -1,9 +1,9 @@
 package com.stocknews.stockprofile;
 
 import com.stocknews.persistence.FinnhubStockProfile;
-import com.stocknews.persistence.FinnhubStockProfileRepository;
 import com.stocknews.persistence.YahooStockProfile;
-import com.stocknews.persistence.YahooStockProfileRepository;
+import com.stocknews.persistence.postgres.FinnhubStockProfileRepository;
+import com.stocknews.persistence.postgres.YahooStockProfileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,7 +35,7 @@ public class StockProfileService {
             }
         }
         List<FinnhubStockProfile> savedProfiles = finnhubRepository.saveAll(profiles);
-        log.info("Saved {} Finnhub stock profiles to H2", savedProfiles.size());
+        log.info("Saved {} Finnhub stock profiles to PostgreSQL", savedProfiles.size());
         return savedProfiles;
     }
 
@@ -52,7 +52,7 @@ public class StockProfileService {
             }
         }
         List<YahooStockProfile> savedProfiles = yahooRepository.saveAll(profiles);
-        log.info("Saved {} Yahoo Finance stock profiles to H2", savedProfiles.size());
+        log.info("Saved {} Yahoo Finance stock profiles to PostgreSQL", savedProfiles.size());
         return savedProfiles;
     }
 

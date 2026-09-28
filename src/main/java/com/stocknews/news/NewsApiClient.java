@@ -3,6 +3,7 @@ package com.stocknews.news;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stocknews.config.AppProperties;
+import com.stocknews.logging.ExceptionLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -56,7 +57,8 @@ public class NewsApiClient implements NewsSourceClient {
 
             return parseNewsResponse(response, market);
         } catch (RestClientException e) {
-            log.error("Failed to fetch NewsAPI articles for market {}: {}", market, e.getMessage());
+            log.error("Failed to fetch NewsAPI articles for market {}:\n{}",
+                    market, ExceptionLog.stackTrace(e));
             return List.of();
         }
     }
@@ -94,7 +96,8 @@ public class NewsApiClient implements NewsSourceClient {
                         publishedAt = LocalDateTime.parse(publishedAtStr.replace("Z", ""), DateTimeFormatter.ISO_DATE_TIME);
                     }
                 } catch (Exception e) {
-                    log.debug("Could not parse publishedAt date: {}", publishedAtStr);
+                    log.error("Could not parse NewsAPI publishedAt date:\n{}",
+                            ExceptionLog.stackTrace(e));
                 }
 
                 if (!title.isBlank() && !url.isBlank()) {
@@ -104,7 +107,7 @@ public class NewsApiClient implements NewsSourceClient {
             }
             log.debug("Parsed {} news items from NewsAPI for market {}", items.size(), market);
         } catch (Exception e) {
-            log.error("Error parsing NewsAPI response: {}", e.getMessage());
+            log.error("Error parsing NewsAPI response:\n{}", ExceptionLog.stackTrace(e));
         }
         return items;
     }

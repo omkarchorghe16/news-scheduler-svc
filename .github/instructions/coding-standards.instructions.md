@@ -15,4 +15,7 @@ applyTo: "**/*.java"
 - Keep API keys and credentials outside source-controlled files. Read configuration from environment
   variables or an ignored local secrets file; do not expose secrets in logs, tests, fixtures, or Postman.
 - Add focused tests for new behavior and update relevant documentation.
+- Keep package names descriptive, lowercase, and consistent with their source directories.
+- Add provider integrations behind provider-specific clients; represent returned fields using typed
+  persistence/domain models rather than unstructured maps.
 - Run the smallest relevant existing build/test commands after changing code.

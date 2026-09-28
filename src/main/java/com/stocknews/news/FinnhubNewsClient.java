@@ -3,6 +3,7 @@ package com.stocknews.news;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stocknews.config.AppProperties;
+import com.stocknews.logging.ExceptionLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -49,7 +50,8 @@ public class FinnhubNewsClient implements NewsSourceClient {
 
             return parseNewsResponse(response, symbol, "US");
         } catch (RestClientException e) {
-            log.error("Failed to fetch Finnhub news for symbol {}: {}", symbol, e.getMessage());
+            log.error("Failed to fetch Finnhub news for symbol {}:\n{}",
+                    symbol, ExceptionLog.stackTrace(e));
             return List.of();
         }
     }
@@ -72,7 +74,7 @@ public class FinnhubNewsClient implements NewsSourceClient {
 
             return parseNewsResponse(response, null, market);
         } catch (RestClientException e) {
-            log.error("Failed to fetch Finnhub general market news: {}", e.getMessage());
+            log.error("Failed to fetch Finnhub general market news:\n{}", ExceptionLog.stackTrace(e));
             return List.of();
         }
     }
@@ -106,7 +108,7 @@ public class FinnhubNewsClient implements NewsSourceClient {
             }
             log.debug("Parsed {} news items from Finnhub for market {}", items.size(), market);
         } catch (Exception e) {
-            log.error("Error parsing Finnhub response: {}", e.getMessage());
+            log.error("Error parsing Finnhub response:\n{}", ExceptionLog.stackTrace(e));
         }
         return items;
     }

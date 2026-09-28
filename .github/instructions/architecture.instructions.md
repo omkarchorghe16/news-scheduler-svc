@@ -16,3 +16,10 @@ applyTo: "**/*.java"
   hard-code deployment-specific URLs or credentials.
 - Keep provider schemas and persistence tables separate when fields or units differ.
 - Do not create cyclic dependencies between web, service, client, and persistence layers.
+- Use descriptive lowercase package names (`notification`, not abbreviations) and keep source
+  directories aligned with package declarations.
+- PostgreSQL is the primary/read database. Mirror every persisted business record to H2 using
+  `H2DatabaseMirror`; do not make H2 the source of truth.
+- Dual writes are not a distributed transaction. Propagate mirror failures; never silently report
+  success when only one database was updated. Document the consistency trade-off.
+- Keep PostgreSQL and H2 credentials/URLs independently configurable and environment-specific.

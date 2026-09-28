@@ -2,16 +2,19 @@ spring:
   profiles:
     default: local
   config:
+    # Optional, untracked local overrides. Keep property names in sync with application-secrets.yml.
     import: optional:file:./application-secrets.yml
   application:
     name: stock-news-scheduler-svc
   datasource:
-    url: jdbc:h2:file:./data/news-scheduler;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    # Local secrets-file properties or environment variables override these defaults.
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/postgres}
+    driver-class-name: org.postgresql.Driver
+    username: ${POSTGRES_USER:omkarchorghe}
+    password: ${POSTGRES_PASSWORD:}
   jpa:
     hibernate:
+      # Create/update the PostgreSQL schema from the JPA entities.
       ddl-auto: update
     show-sql: false
     properties:
@@ -23,6 +26,7 @@ spring:
 
 app:
   notifications:
+    # Secret-file property names map directly to app.notifications.* below.
     slack:
       webhook-url: ${SLACK_WEBHOOK_URL:}
       portfolio-webhook-url: ${SLACK_PORTFOLIO_WEBHOOK_URL:}
@@ -36,12 +40,14 @@ app:
       from-number: ${TWILIO_WHATSAPP_FROM:}
       to-number: ${TWILIO_WHATSAPP_TO:}
   apis:
-    # Set FINNHUB_API_KEY and/or NEWSAPI_KEY in the process environment.
-    # Keep secrets out of this file and out of source control.
+    # API keys can be supplied through environment variables or application-secrets.yml.
+    # Never add actual credentials to this tracked file.
     finnhub-key: ${FINNHUB_API_KEY:}
     newsapi-key: ${NEWSAPI_KEY:}
     finnhub-base-url: ${FINNHUB_BASE_URL:https://finnhub.io/api/v1}
     yahoo-base-url: ${YAHOO_FINANCE_BASE_URL:https://query1.finance.yahoo.com}
+    alpha-vantage-key: ${ALPHA_VANTAGE_API_KEY:}
+    alpha-vantage-base-url: ${ALPHA_VANTAGE_BASE_URL:https://www.alphavantage.co/query}
     timeout-seconds: 5
     max-retries: 3
   watchlist:
@@ -86,6 +92,12 @@ management:
     metrics:
       export:
         enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
 
 logging:
   level:

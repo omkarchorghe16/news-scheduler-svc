@@ -1,5 +1,7 @@
 package com.stocknews.web;
 
+import com.stocknews.alphavantage.AlphaVantageOverviewService;
+import com.stocknews.persistence.AlphaVantageOverview;
 import com.stocknews.persistence.FinnhubStockProfile;
 import com.stocknews.persistence.YahooStockProfile;
 import com.stocknews.stockprofile.StockProfileService;
@@ -25,6 +27,9 @@ class StockProfileControllerTest {
     @MockitoBean
     private StockProfileService stockProfileService;
 
+    @MockitoBean
+    private AlphaVantageOverviewService alphaVantageOverviewService;
+
     @Test
     void fetchFinnhubProfilesAcceptsSymbolList() throws Exception {
         when(stockProfileService.fetchAndSaveFinnhubProfiles(List.of("AAPL")))
@@ -49,6 +54,19 @@ class StockProfileControllerTest {
                 .andExpect(status().isOk());
 
         verify(stockProfileService).fetchAndSaveYahooProfiles(List.of("AAPL", "MSFT"));
+    }
+
+    @Test
+    void fetchAlphaVantageOverviewsAcceptsSymbolList() throws Exception {
+        when(alphaVantageOverviewService.fetchAndSave(List.of("AAPL")))
+                .thenReturn(List.of(new AlphaVantageOverview()));
+
+        mockMvc.perform(post("/api/stocks/alphavantage/overview")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"symbols\":[\"AAPL\"]}"))
+                .andExpect(status().isOk());
+
+        verify(alphaVantageOverviewService).fetchAndSave(List.of("AAPL"));
     }
 
     @Test

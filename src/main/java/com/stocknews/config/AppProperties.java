@@ -54,6 +54,8 @@ public class AppProperties {
         private String newsapiKey;
         private String finnhubBaseUrl = "https://finnhub.io/api/v1";
         private String yahooBaseUrl = "https://query1.finance.yahoo.com";
+        private String alphaVantageKey;
+        private String alphaVantageBaseUrl = "https://www.alphavantage.co/query";
         private int timeoutSeconds = 5;
         private int maxRetries = 1;
     }

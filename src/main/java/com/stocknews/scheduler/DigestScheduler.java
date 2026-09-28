@@ -1,6 +1,7 @@
 package com.stocknews.scheduler;
 
 import com.stocknews.digest.DigestService;
+import com.stocknews.logging.ExceptionLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -27,7 +28,7 @@ public class DigestScheduler {
         try {
             digestService.runDailyDigest();
         } catch (Exception e) {
-            log.error("Scheduled digest job failed", e);
+            log.error("Scheduled digest job failed:\n{}", ExceptionLog.stackTrace(e));
         }
     }
 }
