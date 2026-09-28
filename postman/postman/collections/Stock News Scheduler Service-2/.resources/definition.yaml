@@ -1,0 +1,6 @@
+$kind: collection
+name: Stock News Scheduler Service
+description: Ready-to-use Postman collection for the Stock News Scheduler Service REST API.
+variables:
+  baseUrl: http://localhost:8080
+  apiPath: /api/digest

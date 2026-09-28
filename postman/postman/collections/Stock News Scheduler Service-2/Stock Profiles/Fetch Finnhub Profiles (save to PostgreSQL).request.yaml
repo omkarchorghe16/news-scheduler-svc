@@ -1,0 +1,33 @@
+# Persists the fetched profiles in PostgreSQL.
+$kind: http-request
+url: "{{baseUrl}}/api/stocks/finnhub/profiles"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "symbols": ["AAPL", "MSFT"]
+    }
+scripts:
+  - type: afterResponse
+    code: |
+      pm.test("Status code is 200", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("Returns a profile for each requested symbol", function () {
+        var profiles = pm.response.json();
+        pm.expect(profiles).to.be.an("array").with.lengthOf(2);
+        pm.expect(profiles.map(function (profile) { return profile.symbol; })).to.eql(["AAPL", "MSFT"]);
+      });
+
+      pm.test("Finnhub profile has expected fields", function () {
+        var profile = pm.response.json()[0];
+        ["name", "industry", "ipoDate", "marketCapitalization", "logo", "updatedAt"].forEach(function (field) {
+          pm.expect(profile).to.have.property(field);
+        });
+      });
+    language: text/javascript
+order: 1000

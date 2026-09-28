@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{baseUrl}}/api/stocks/finnhub/profiles"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "symbols": []
+    }
+scripts:
+  - type: afterResponse
+    code: |
+      pm.test("Empty symbol list is rejected", function () {
+        pm.response.to.have.status(400);
+      });
+    language: text/javascript
+order: 4000

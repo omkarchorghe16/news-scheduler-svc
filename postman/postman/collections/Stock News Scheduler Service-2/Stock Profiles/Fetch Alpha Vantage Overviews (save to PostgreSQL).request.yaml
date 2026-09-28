@@ -1,0 +1,33 @@
+# Persists the fetched overview in PostgreSQL.
+$kind: http-request
+url: "{{baseUrl}}/api/stocks/alphavantage/overview"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "symbols": ["AAPL", "MSFT"]
+    }
+scripts:
+  - type: afterResponse
+    code: |
+      pm.test("Status code is 200", function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test("Returns an overview for each requested symbol", function () {
+        var overviews = pm.response.json();
+        pm.expect(overviews).to.be.an("array").with.lengthOf(2);
+        pm.expect(overviews.map(function (overview) { return overview.symbol; })).to.eql(["AAPL", "MSFT"]);
+      });
+
+      pm.test("Alpha Vantage overview has expected fields", function () {
+        var overview = pm.response.json()[0];
+        ["name", "description", "sector", "industry", "marketCapitalization", "peRatio", "eps", "updatedAt"].forEach(function (field) {
+          pm.expect(overview).to.have.property(field);
+        });
+      });
+    language: text/javascript
+order: 3000
