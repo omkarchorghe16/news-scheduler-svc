@@ -1,7 +1,7 @@
 package com.stocknews.alphavantage;
 
-import com.stocknews.persistence.AlphaVantageApiCall;
-import com.stocknews.persistence.postgres.AlphaVantageApiCallRepository;
+import com.stocknews.model.AlphaVantageApiCall;
+import com.stocknews.repository.AlphaVantageApiCallRepository;
 import com.stocknews.logging.ExceptionLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

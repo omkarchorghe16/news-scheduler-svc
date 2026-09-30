@@ -1,0 +1,24 @@
+$kind: http-request
+url: "{{baseUrl}}/api/stocks"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "ticker": "{{stockTicker}}",
+      "sectorId": {{sectorId}}
+    }
+scripts:
+  - type: beforeRequest
+    code: pm.collectionVariables.set("stockTicker", "PM" + Date.now().toString().slice(-8));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("Stock is created", function () { pm.response.to.have.status(201); });
+      var stock = pm.response.json();
+      pm.collectionVariables.set("stockId", stock.id);
+      pm.test("Response contains the created stock", function () { pm.expect(stock.ticker).to.eql(pm.collectionVariables.get("stockTicker")); pm.expect(stock.sectorId).to.eql(Number(pm.collectionVariables.get("sectorId"))); });
+    language: text/javascript
+order: 5000

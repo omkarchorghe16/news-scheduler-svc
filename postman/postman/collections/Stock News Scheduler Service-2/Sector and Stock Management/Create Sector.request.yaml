@@ -1,0 +1,23 @@
+$kind: http-request
+url: "{{baseUrl}}/api/sectors"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "sectorName": "{{sectorName}}"
+    }
+scripts:
+  - type: beforeRequest
+    code: pm.collectionVariables.set("sectorName", "Postman Sector " + Date.now());
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("Sector is created", function () { pm.response.to.have.status(201); });
+      var sector = pm.response.json();
+      pm.collectionVariables.set("sectorId", sector.id);
+      pm.test("Response contains the created sector", function () { pm.expect(sector.sectorName).to.eql(pm.collectionVariables.get("sectorName")); });
+    language: text/javascript
+order: 1000

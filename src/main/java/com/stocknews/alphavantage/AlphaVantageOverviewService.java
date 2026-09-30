@@ -1,7 +1,7 @@
 package com.stocknews.alphavantage;
 
-import com.stocknews.persistence.AlphaVantageOverview;
-import com.stocknews.persistence.postgres.AlphaVantageOverviewRepository;
+import com.stocknews.model.AlphaVantageOverview;
+import com.stocknews.repository.AlphaVantageOverviewRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

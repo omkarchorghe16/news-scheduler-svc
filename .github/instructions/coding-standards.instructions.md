@@ -18,4 +18,8 @@ applyTo: "**/*.java"
 - Keep package names descriptive, lowercase, and consistent with their source directories.
 - Add provider integrations behind provider-specific clients; represent returned fields using typed
   persistence/domain models rather than unstructured maps.
+- Keep endpoint changes in sync across the controller, OpenAPI annotations, MockMvc tests, and the
+  Postman collection when the public API changes.
+- Do not add secrets or live provider credentials to source, tests, Postman requests/environments,
+  logs, or committed configuration.
 - Run the smallest relevant existing build/test commands after changing code.

@@ -1,8 +1,7 @@
 package com.stocknews.digest;
 
-import com.stocknews.news.NewsItem;
-import com.stocknews.persistence.SentArticle;
-import com.stocknews.persistence.postgres.SentArticleRepository;
+import com.stocknews.model.SentArticle;
+import com.stocknews.repository.SentArticleRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

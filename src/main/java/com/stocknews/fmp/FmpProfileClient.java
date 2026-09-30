@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stocknews.config.FmpProperties;
 import com.stocknews.logging.ExceptionLog;
-import com.stocknews.persistence.FmpStockProfile;
+import com.stocknews.model.FmpStockProfile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

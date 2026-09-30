@@ -476,7 +476,7 @@ private static final int DEDUP_DAYS = 3;  // Change to desired number
 ## Database setup
 
 The application reads and writes data through Spring Data JPA repositories in
-`com.stocknews.persistence.postgres`, using the PostgreSQL datasource. Hibernate creates or updates
+`model`, using the PostgreSQL datasource. Hibernate creates or updates
 the PostgreSQL tables from the JPA entities at startup. H2 is used only for automated tests.
 
 Create a PostgreSQL database and user using pgAdmin or `psql`, for example:

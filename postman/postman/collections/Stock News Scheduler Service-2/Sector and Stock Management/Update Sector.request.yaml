@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{baseUrl}}/api/sectors/{{sectorId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "sectorName": "{{updatedSectorName}}"
+    }
+scripts:
+  - type: beforeRequest
+    code: pm.collectionVariables.set("updatedSectorName", "Updated Postman Sector " + Date.now());
+    language: text/javascript
+  - type: afterResponse
+    code: pm.test("Sector is updated", function () { pm.response.to.have.status(200); pm.expect(pm.response.json().sectorName).to.eql(pm.collectionVariables.get("updatedSectorName")); });
+    language: text/javascript
+order: 4000

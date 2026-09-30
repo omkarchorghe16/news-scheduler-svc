@@ -1,10 +1,10 @@
 package com.stocknews.fmp;
 
 import com.stocknews.config.FmpProperties;
-import com.stocknews.persistence.FmpApiCall;
-import com.stocknews.persistence.FmpStockProfile;
-import com.stocknews.persistence.postgres.FmpApiCallRepository;
-import com.stocknews.persistence.postgres.FmpStockProfileRepository;
+import com.stocknews.model.FmpApiCall;
+import com.stocknews.model.FmpStockProfile;
+import com.stocknews.repository.FmpApiCallRepository;
+import com.stocknews.repository.FmpStockProfileRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

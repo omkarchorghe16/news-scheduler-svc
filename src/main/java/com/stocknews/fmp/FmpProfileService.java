@@ -2,11 +2,11 @@ package com.stocknews.fmp;
 
 import com.stocknews.config.FmpProperties;
 import com.stocknews.logging.ExceptionLog;
-import com.stocknews.persistence.FmpApiCall;
-import com.stocknews.persistence.FmpStockProfile;
-import com.stocknews.persistence.postgres.FmpApiCallRepository;
-import com.stocknews.persistence.postgres.FmpStockProfileRepository;
-import com.stocknews.stockprofile.StockSymbolNormalizer;
+import com.stocknews.model.FmpApiCall;
+import com.stocknews.model.FmpStockProfile;
+import com.stocknews.repository.FmpApiCallRepository;
+import com.stocknews.repository.FmpStockProfileRepository;
+import com.stocknews.service.StockSymbolNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;

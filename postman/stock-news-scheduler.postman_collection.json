@@ -104,6 +104,387 @@
       ]
     },
     {
+      "name": "Sector and Stock Management",
+      "item": [
+        {
+          "name": "Create Sector",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"sectorName\", \"Postman Sector \" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Sector is created\", function () { pm.response.to.have.status(201); });",
+                  "var sector = pm.response.json();",
+                  "pm.collectionVariables.set(\"sectorId\", sector.id);",
+                  "pm.test(\"Response contains the created sector\", function () { pm.expect(sector.sectorName).to.eql(pm.collectionVariables.get(\"sectorName\")); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectorName\": \"{{sectorName}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/sectors"
+          },
+          "response": []
+        },
+        {
+          "name": "List Sectors",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Sector list is returned\", function () { pm.response.to.have.status(200); pm.expect(pm.response.json()).to.be.an(\"array\"); });",
+                  "pm.test(\"Created sector is in the list\", function () { pm.expect(pm.response.json().some(function (sector) { return sector.id === Number(pm.collectionVariables.get(\"sectorId\")); })).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/sectors"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sector",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Sector is fetched by ID\", function () { pm.response.to.have.status(200); pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get(\"sectorId\"))); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/sectors/{{sectorId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Sector",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"updatedSectorName\", \"Updated Postman Sector \" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Sector is updated\", function () { pm.response.to.have.status(200); pm.expect(pm.response.json().sectorName).to.eql(pm.collectionVariables.get(\"updatedSectorName\")); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectorName\": \"{{updatedSectorName}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/sectors/{{sectorId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Stock",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"stockTicker\", \"PM\" + Date.now().toString().slice(-8));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Stock is created\", function () { pm.response.to.have.status(201); });",
+                  "var stock = pm.response.json();",
+                  "pm.collectionVariables.set(\"stockId\", stock.id);",
+                  "pm.test(\"Response contains the created stock\", function () { pm.expect(stock.ticker).to.eql(pm.collectionVariables.get(\"stockTicker\")); pm.expect(stock.sectorId).to.eql(Number(pm.collectionVariables.get(\"sectorId\"))); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticker\": \"{{stockTicker}}\",\n  \"sectorId\": {{sectorId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/stocks"
+          },
+          "response": []
+        },
+        {
+          "name": "Filter Stocks by Sector and Ticker",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Filtered stock is returned\", function () { pm.response.to.have.status(200); pm.expect(pm.response.json()).to.be.an(\"array\").with.lengthOf(1); pm.expect(pm.response.json()[0].ticker).to.eql(pm.collectionVariables.get(\"stockTicker\")); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/stocks?sectorId={{sectorId}}&ticker={{stockTicker}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Stock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Stock is fetched by ID\", function () { pm.response.to.have.status(200); pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get(\"stockId\"))); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/stocks/{{stockId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Stock",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"updatedStockTicker\", \"UP\" + Date.now().toString().slice(-8));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Stock is updated\", function () { pm.response.to.have.status(200); pm.expect(pm.response.json().ticker).to.eql(pm.collectionVariables.get(\"updatedStockTicker\")); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticker\": \"{{updatedStockTicker}}\",\n  \"sectorId\": {{sectorId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/stocks/{{stockId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Stock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Stock is deleted\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/stocks/{{stockId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Stocks in Bulk",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Bulk request creates stocks\", function () { pm.response.to.have.status(201); pm.expect(pm.response.json().created).to.have.lengthOf(2); pm.expect(pm.response.json().skipped).to.be.an(\"array\"); });",
+                  "var created = pm.response.json().created;",
+                  "pm.collectionVariables.set(\"bulkStockId1\", created[0].id);",
+                  "pm.collectionVariables.set(\"bulkStockId2\", created[1].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectorId\": {{sectorId}},\n  \"tickers\": [\"PMBULK1\", \"PMBULK2\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/stocks/bulk"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete First Bulk Stock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"First bulk stock is deleted\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/stocks/{{bulkStockId1}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Second Bulk Stock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Second bulk stock is deleted\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/stocks/{{bulkStockId2}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Sector",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Sector is deleted after its stocks\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/sectors/{{sectorId}}"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Stock Profiles",
       "item": [
         {

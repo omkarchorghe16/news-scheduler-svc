@@ -4,6 +4,8 @@ applyTo: "**/*.java"
 
 # Spring Boot standards
 
+- This project uses Java 21 and Spring Boot 3.5.x. Preserve the Maven dependency-management model
+  and use existing dependencies unless a requirement cannot be met otherwise.
 - Use Spring-managed components with the narrowest appropriate stereotype (`@RestController`,
   `@Service`, `@Component`, or `@Repository`).
 - Prefer constructor injection and immutable dependencies.
@@ -15,10 +17,12 @@ applyTo: "**/*.java"
 - Keep blocking provider calls within configured timeouts and respect documented provider rate limits.
 - Use JPA annotations and repository methods consistent with existing entities; make upsert behavior
   explicit and safe for repeated requests.
-- Keep dev-only tools such as the H2 console disabled by default and enable them only in local config.
+- PostgreSQL is the application datasource; H2 is used by tests through
+  `src/test/resources/application.yml`. Do not imply or implement a production H2 mirror without
+  an explicitly approved architecture change.
 - Test web mappings with MockMvc and isolate provider/database behavior in appropriate tests.
 - Document every REST API in OpenAPI annotations and keep `/v3/api-docs` and Swagger UI current.
-- Configure PostgreSQL as the primary JPA datasource and H2 as a separate mirror datasource; avoid
-  relying on implicit Spring Boot datasource auto-configuration for the mirror.
 - External-provider rate limits must be enforced before issuing calls. Count durable daily quotas
   from persisted calls where possible so application restarts do not reset the daily allowance.
+- Use `postman/stock-news-scheduler.postman_collection.json` for API examples and assertions; never
+  include credentials in the collection or local environment export.

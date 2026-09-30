@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{baseUrl}}/api/stocks/bulk"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "sectorId": {{sectorId}},
+      "tickers": ["PMBULK1", "PMBULK2"]
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Bulk request creates stocks", function () { pm.response.to.have.status(201); pm.expect(pm.response.json().created).to.have.lengthOf(2); pm.expect(pm.response.json().skipped).to.be.an("array"); });
+      var created = pm.response.json().created;
+      pm.collectionVariables.set("bulkStockId1", created[0].id);
+      pm.collectionVariables.set("bulkStockId2", created[1].id);
+    language: text/javascript
+order: 10000
