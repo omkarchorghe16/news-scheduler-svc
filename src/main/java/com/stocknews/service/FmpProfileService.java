@@ -1,12 +1,12 @@
-package com.stocknews.fmp;
+package com.stocknews.service;
 
+import com.stocknews.client.FmpProfileClient;
 import com.stocknews.config.FmpProperties;
 import com.stocknews.logging.ExceptionLog;
 import com.stocknews.model.FmpApiCall;
 import com.stocknews.model.FmpStockProfile;
 import com.stocknews.repository.FmpApiCallRepository;
 import com.stocknews.repository.FmpStockProfileRepository;
-import com.stocknews.service.StockSymbolNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;

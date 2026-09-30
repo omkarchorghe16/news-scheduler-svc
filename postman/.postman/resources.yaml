@@ -6,7 +6,7 @@ workspace:
 
 cloudResources:
   collections:
-    ../postman/collections/Stock News Scheduler Service-2: 002eba43-1e16-43c5-9abf-2034ae532daa
+    ../postman/collections/Stock News Scheduler Service-2: 9cb8eaf4-72ef-4af8-bd4f-9811a4127430
 
 # All resources in the `postman/` folder are automatically registered in Local View.
 # Point to additional files outside the `postman/` folder to register them individually. Example:

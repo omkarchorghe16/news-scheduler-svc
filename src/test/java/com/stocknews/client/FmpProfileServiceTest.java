@@ -1,10 +1,11 @@
-package com.stocknews.fmp;
+package com.stocknews.client;
 
 import com.stocknews.config.FmpProperties;
 import com.stocknews.model.FmpApiCall;
 import com.stocknews.model.FmpStockProfile;
 import com.stocknews.repository.FmpApiCallRepository;
 import com.stocknews.repository.FmpStockProfileRepository;
+import com.stocknews.service.FmpProfileService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

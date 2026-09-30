@@ -1,5 +1,5 @@
 $kind: http-request
-url: "{{baseUrl}}/api/stocks/bulk"
+url: "{{baseUrl}}/api/stock-symbols"
 method: POST
 headers:
   Content-Type: application/json
@@ -18,4 +18,4 @@ scripts:
       pm.collectionVariables.set("bulkStockId1", created[0].id);
       pm.collectionVariables.set("bulkStockId2", created[1].id);
     language: text/javascript
-order: 10000
+order: 11000

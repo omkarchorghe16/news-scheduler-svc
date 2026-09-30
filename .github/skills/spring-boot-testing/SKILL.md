@@ -14,6 +14,9 @@ provider/database workflow.
   Do not add a new test framework or dependency for routine coverage.
 - Controller tests use `@WebMvcTest`, MockMvc, and mocked service dependencies. Assert response
   status, JSON contract, headers, validation, and service delegation as applicable.
+- When a route moves to another controller, move/update its controller tests and ensure the old
+  route is not left documented as current. Add contract coverage for new routes such as
+  `POST /api/stock-symbols` using a mocked `StockService`.
 - Provider HTTP client tests should isolate requests with the existing `MockRestServiceServer` or
   WireMock; tests must never require live provider credentials or internet access.
 - Database tests use the `test` profile and H2 configured in `src/test/resources/application.yml`.
@@ -35,6 +38,9 @@ provider/database workflow.
    `mvn -q -Dtest=SectorControllerTest,StockControllerTest test`
 6. If a test fails, distinguish product regressions from environment/profile or test setup failures;
    do not weaken assertions merely to make the suite pass.
+7. For the feature under test, review every `.github/skills/*/SKILL.md` and update affected skills,
+   `README.md`, and directly related documentation so test guidance and documented behavior stay
+   aligned with the implementation.
 
 ## Verification checklist
 

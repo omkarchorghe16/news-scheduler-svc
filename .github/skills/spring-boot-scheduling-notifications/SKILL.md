@@ -36,6 +36,9 @@ delivery-channel behavior.
    relevant.
 4. Update API docs and Postman only when the public HTTP contract changes.
 5. Run the affected JUnit tests and a Maven compile/package.
+6. Review every `.github/skills/*/SKILL.md`; update all skills affected by the behavior or shared
+   conventions. Update `README.md` and directly related API, configuration, scheduling, or
+   operational documentation.
 
 ## Verification checklist
 

@@ -1,6 +1,6 @@
 package com.stocknews.digest;
 
-import com.stocknews.news.NewsItem;
+import com.stocknews.client.NewsItem;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 

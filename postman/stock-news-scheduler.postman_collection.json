@@ -283,6 +283,40 @@
           "response": []
         },
         {
+          "name": "Reject Empty Stock Ticker List",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Empty ticker list is rejected\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectorId\": {{sectorId}},\n  \"tickers\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/stock-symbols"
+          },
+          "response": []
+        },
+        {
           "name": "Filter Stocks by Sector and Ticker",
           "event": [
             {
@@ -386,7 +420,7 @@
           "response": []
         },
         {
-          "name": "Create Stocks in Bulk",
+          "name": "Add Stock Symbols to Sector",
           "event": [
             {
               "listen": "test",
@@ -418,7 +452,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/stocks/bulk"
+            "url": "{{baseUrl}}/api/stock-symbols"
           },
           "response": []
         },
@@ -627,7 +661,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/stocks/fmp/profiles"
+            "url": "{{baseUrl}}/api/fmp/profiles"
           },
           "response": []
         },

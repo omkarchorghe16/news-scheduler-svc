@@ -1,4 +1,4 @@
-package com.stocknews.fmp;
+package com.stocknews.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stocknews.config.FmpProperties;

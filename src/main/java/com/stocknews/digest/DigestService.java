@@ -1,8 +1,8 @@
 package com.stocknews.digest;
 
-import com.stocknews.news.FinnhubNewsClient;
-import com.stocknews.news.NewsApiClient;
-import com.stocknews.news.NewsItem;
+import com.stocknews.client.FinnhubNewsClient;
+import com.stocknews.client.NewsApiClient;
+import com.stocknews.client.NewsItem;
 import com.stocknews.notification.SlackNotifier;
 import com.stocknews.notification.TelegramNotifier;
 import com.stocknews.notification.WhatsAppNotifier;

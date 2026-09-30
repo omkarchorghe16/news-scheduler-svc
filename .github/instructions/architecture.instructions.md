@@ -25,3 +25,8 @@ applyTo: "**/*.java"
   decision.
 - Put transaction boundaries on service workflows, not controllers or repositories, unless an
   existing repository convention requires otherwise.
+- For every feature or behavior change, review all files in `.github/skills/` and update every skill
+  whose workflow or project guidance is affected. Keep shared conventions consistent across skills;
+  do not churn unrelated skill content.
+- Keep `README.md` and relevant API, configuration, and operational documentation synchronized with
+  implemented behavior. Public API changes also require synchronized OpenAPI and Postman examples.

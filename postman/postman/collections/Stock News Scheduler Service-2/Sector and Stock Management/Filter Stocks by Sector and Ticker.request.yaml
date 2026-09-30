@@ -8,4 +8,4 @@ scripts:
   - type: afterResponse
     code: pm.test("Filtered stock is returned", function () { pm.response.to.have.status(200); pm.expect(pm.response.json()).to.be.an("array").with.lengthOf(1); pm.expect(pm.response.json()[0].ticker).to.eql(pm.collectionVariables.get("stockTicker")); });
     language: text/javascript
-order: 6000
+order: 7000

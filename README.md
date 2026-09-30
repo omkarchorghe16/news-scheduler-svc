@@ -11,10 +11,11 @@ A complete Java Spring Boot application that fetches daily stock market news for
 - **Multi-Channel Notifications**: Slack, Telegram, WhatsApp (Twilio)
 - **Portfolio Tracking**: Separate digest for configured portfolio symbols (Slack-only)
 - **On-Demand Triggers**: REST endpoints to manually trigger digests without waiting for schedule
-- **Stock Profiles**: Fetch Finnhub, Yahoo Finance, and Alpha Vantage company information and persist it in PostgreSQL
+- **Stock Profiles**: Fetch Finnhub, Yahoo Finance, Alpha Vantage, and FMP company information and persist it in PostgreSQL
+- **Sector and Stock Management**: CRUD endpoints for sectors and sector-associated stock tickers, including bulk stock creation
 - **API Documentation**: Interactive Swagger UI and generated OpenAPI specification
 - **Database**: PostgreSQL for application data; H2 is used only by tests
-- **Development Standards**: Repository-specific Copilot instructions for coding, architecture, Spring Boot, and logging
+- **Development Standards**: Repository-specific Copilot instructions and reusable backend skills for architecture, REST APIs, JPA, provider integrations, scheduling/notifications, and testing
 - **Configurable Everything**: @ConfigurationProperties binds all settings from environment variables
 
 ## Tech Stack
@@ -41,40 +42,47 @@ com/stocknews/
 │   ├── DigestService.java          # Orchestrates fetch → dedup → format → notify
 │   ├── DigestFormatter.java        # Formats messages for each channel
 │   └── Watchlist.java              # Manages US/NSE symbol lists
-├── news/
+├── client/
 │   ├── NewsItem.java               # Record: title, url, source, publishedAt, symbol, market
 │   ├── NewsSourceClient.java       # Interface
 │   ├── FinnhubNewsClient.java      # Finnhub API integration
-│   └── NewsApiClient.java          # NewsAPI.org integration
+│   ├── NewsApiClient.java          # NewsAPI.org integration
+│   └── FmpProfileClient.java       # FMP HTTP request and response parsing
 ├── notification/
 │   ├── Notifier.java               # Interface
 │   ├── SlackNotifier.java          # Slack Webhook
 │   ├── TelegramNotifier.java       # Telegram Bot API
 │   └── WhatsAppNotifier.java       # Twilio WhatsApp API
-├── persistence/
-│   ├── *Overview.java, *StockProfile.java, SentArticle.java  # Shared JPA entities
-│   └── postgres/
-│       └── *Repository.java       # PostgreSQL Spring Data repositories
-├── fmp/
-│   ├── FmpProfileClient.java      # FMP HTTP request and response parsing
-│   └── FmpProfileService.java     # FMP quota tracking and PostgreSQL persistence
+├── controller/
+│   ├── DigestTriggerController.java
+│   ├── SectorController.java
+│   ├── StockController.java
+│   └── StockProfileController.java # REST endpoints
+├── dto/                            # Validated requests and API response records
+├── model/                          # JPA entities and provider-specific records
+├── repository/                     # Spring Data repositories (PostgreSQL)
 ├── alphavantage/
 │   ├── AlphaVantageOverviewClient.java
 │   ├── AlphaVantageOverviewService.java
 │   └── AlphaVantageRateLimiter.java
-├── stockprofile/
-│   ├── FinnhubStockProfileService.java
-│   ├── YahooStockProfileService.java
-│   ├── StockSymbolNormalizer.java
-│   └── *StockProfileClient.java    # Provider integrations
-└── web/
-    ├── DigestTriggerController.java
-    └── StockProfileController.java # REST endpoints
+├── service/                        # Stock/profile workflows, FMP quotas, normalization, and rate limits
+└── exception/                      # API exceptions and centralized ProblemDetail mapping
 ```
 
-Repository coding guidance lives in `.github/copilot-instructions.md` and the focused files in
-`.github/instructions/`. These set the expected coding, architecture, Spring Boot, and logging
-standards for future Copilot changes.
+Repository coding guidance lives in `.github/copilot-instructions.md` and focused standards in
+`.github/instructions/`. Reusable workflows are in `.github/skills/`:
+
+- `spring-boot-architecture`: cross-layer design, boundaries, and architecture changes
+- `spring-boot-rest-api`: controllers, validation, OpenAPI, MockMvc, and Postman
+- `spring-boot-jpa`: entities, repositories, transactions, and database-backed services
+- `spring-boot-provider-integration`: provider clients, quotas, parsing, and safe errors
+- `spring-boot-scheduling-notifications`: digest scheduling, orchestration, and delivery
+- `spring-boot-testing`: focused JUnit, MockMvc, provider, and persistence tests
+
+For every feature or behavior change, review **all** skills and update those affected by the code or
+shared conventions. Keep this README and directly related API, configuration, and operational
+documentation synchronized with the implementation. Do not leave relevant documentation stale or
+make unrelated skill edits just to create churn.
 
 ## Prerequisites
 
@@ -262,7 +270,7 @@ curl -X POST http://localhost:8080/api/stocks/alphavantage/overview \
   -H "Content-Type: application/json" \
   -d '{"symbols":["AAPL","MSFT"]}'
 
-curl -X POST http://localhost:8080/api/stocks/fmp/profiles \
+curl -X POST http://localhost:8080/api/fmp/profiles \
   -H "Content-Type: application/json" \
   -d '{"symbols":["AAPL","MSFT"]}'
 ```
@@ -290,10 +298,25 @@ Alpha Vantage requests are limited to 25 per day and 5 per minute. The daily cou
 PostgreSQL, and requests wait when the per-minute quota is reached. Each symbol consumes one call.
 Create your own API key at [alphavantage.co](https://www.alphavantage.co/support/#api-key) and set
 `ALPHA_VANTAGE_API_KEY` in your environment or secret store.
-The Postman collection includes profile requests for all three providers and a validation test for an
+The Postman collection includes profile requests for all four providers and a validation test for an
 empty symbol list. Import `postman/stock-news-scheduler.postman_collection.json`, select the local
-environment, configure the Finnhub and Alpha Vantage API keys in the running application to run those
-requests, then run the Stock Profiles folder. The Yahoo request does not require a key.
+environment, configure Finnhub, Alpha Vantage, and FMP API keys in the running application to run
+those requests, then run the Stock Profiles folder. The Yahoo request does not require a key.
+
+### Adding Stock Symbols
+
+Add a list of ticker symbols to an existing sector. The service normalizes tickers, creates records
+that do not already exist in that sector, and reports already-present tickers in `skipped`:
+
+```bash
+curl -X POST http://localhost:8080/api/stock-symbols \
+  -H "Content-Type: application/json" \
+  -d '{"sectorId":3,"tickers":["AAPL","MSFT","NVDA"]}'
+```
+
+The request requires a non-empty `tickers` array and an existing `sectorId`. The response contains
+`created` stock records and a `skipped` ticker list. The existing `POST /api/stocks/bulk` endpoint
+continues to support the same bulk-creation operation.
 
 ### On-Demand Triggers
 
@@ -644,6 +667,9 @@ To extend the application:
 2. **Add a new notifier**: Implement `Notifier` interface
 3. **Change schedule**: Modify cron expression in config
 4. **Add new watchlist**: Extend `Watchlist` component
+5. **Document changes**: Update the README and directly affected docs, and review all
+   `.github/skills/*/SKILL.md` files; update every skill affected by the implementation or shared
+   project conventions.
 
 ## License
 

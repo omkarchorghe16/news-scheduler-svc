@@ -21,6 +21,8 @@ Use this skill when changing persisted data, repository queries, or transactiona
   multi-step workflows that need one database transaction.
 - Match existing repository naming patterns and fetch requirements. Avoid introducing N+1 behavior
   when converting entity relations into response DTOs.
+- The stock-symbol ingestion workflow delegates to `StockService.createBulk`; symbols are normalized,
+  existing tickers in the same sector are skipped, and newly created records are returned.
 
 ## Implementation sequence
 
@@ -35,6 +37,8 @@ Use this skill when changing persisted data, repository queries, or transactiona
 5. If the data is exposed over HTTP, update its DTOs, OpenAPI documentation, MockMvc tests, and
    Postman collection as needed.
 6. Run targeted tests and a Maven package/compile.
+7. Review every `.github/skills/*/SKILL.md`; update all skills affected by the data model or shared
+   conventions. Update `README.md` and relevant schema, setup, API, or operational documentation.
 
 ## Verification checklist
 

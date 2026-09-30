@@ -20,6 +20,9 @@ applyTo: "**/*.java"
   persistence/domain models rather than unstructured maps.
 - Keep endpoint changes in sync across the controller, OpenAPI annotations, MockMvc tests, and the
   Postman collection when the public API changes.
+- For each new or changed feature, review every skill under `.github/skills/` and update all skills
+  affected by the implementation or conventions. Keep `README.md` and directly related project
+  documentation current; do not leave relevant skill or user-facing documentation stale.
 - Do not add secrets or live provider credentials to source, tests, Postman requests/environments,
   logs, or committed configuration.
 - Run the smallest relevant existing build/test commands after changing code.

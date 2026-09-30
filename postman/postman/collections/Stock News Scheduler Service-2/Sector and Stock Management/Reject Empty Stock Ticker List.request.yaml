@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{baseUrl}}/api/stock-symbols"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "sectorId": {{sectorId}},
+      "tickers": []
+    }
+scripts:
+  - type: afterResponse
+    code: pm.test("Empty ticker list is rejected", function () { pm.response.to.have.status(400); });
+    language: text/javascript
+order: 6000

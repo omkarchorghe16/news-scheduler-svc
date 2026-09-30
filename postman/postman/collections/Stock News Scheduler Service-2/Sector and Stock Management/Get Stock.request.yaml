@@ -5,4 +5,4 @@ scripts:
   - type: afterResponse
     code: pm.test("Stock is fetched by ID", function () { pm.response.to.have.status(200); pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get("stockId"))); });
     language: text/javascript
-order: 7000
+order: 8000

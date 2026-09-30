@@ -5,4 +5,4 @@ scripts:
   - type: afterResponse
     code: pm.test("Sector is deleted after its stocks", function () { pm.response.to.have.status(204); });
     language: text/javascript
-order: 13000
+order: 14000

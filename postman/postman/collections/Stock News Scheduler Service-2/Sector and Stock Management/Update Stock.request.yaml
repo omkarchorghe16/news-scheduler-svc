@@ -17,4 +17,4 @@ scripts:
   - type: afterResponse
     code: pm.test("Stock is updated", function () { pm.response.to.have.status(200); pm.expect(pm.response.json().ticker).to.eql(pm.collectionVariables.get("updatedStockTicker")); });
     language: text/javascript
-order: 8000
+order: 9000

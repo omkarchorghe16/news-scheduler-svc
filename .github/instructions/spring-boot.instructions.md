@@ -26,3 +26,5 @@ applyTo: "**/*.java"
   from persisted calls where possible so application restarts do not reset the daily allowance.
 - Use `postman/stock-news-scheduler.postman_collection.json` for API examples and assertions; never
   include credentials in the collection or local environment export.
+- When behavior or functionality changes, review every skill in `.github/skills/` and update
+  affected skills, `README.md`, and directly related API/configuration/operations documentation.

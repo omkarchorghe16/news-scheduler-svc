@@ -22,6 +22,9 @@ controller tests.
 - Document endpoints with springdoc OpenAPI `@Operation`, `@ApiResponse`/`@ApiResponses`, and
   `@Tag` where appropriate.
 - Preserve the existing `GlobalExceptionHandler` behavior and ProblemDetail response format.
+- Provider-specific profile endpoints may use dedicated controllers and route roots; the FMP profile
+  API is `POST /api/fmp/profiles`. Bulk stock-symbol ingestion is `POST /api/stock-symbols` and
+  requires `sectorId` plus a non-empty `tickers` list.
 
 ## Implementation sequence
 
@@ -35,6 +38,9 @@ controller tests.
    only when those files are intentionally maintained by the repository.
 6. Run the affected controller tests, then `mvn -q -DskipTests package` if the changed API affects
    compilation outside the test slice.
+7. Review every `.github/skills/*/SKILL.md`; update all skills affected by the API or shared
+   conventions. Update `README.md`, OpenAPI, Postman, and any directly related API documentation
+   so their contracts agree with the implementation.
 
 ## Verification checklist
 

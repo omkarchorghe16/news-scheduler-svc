@@ -1,4 +1,4 @@
-package com.stocknews.news;
+package com.stocknews.client;
 
 import java.time.LocalDateTime;
 

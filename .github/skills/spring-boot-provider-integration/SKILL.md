@@ -23,6 +23,9 @@ or another remote service.
   quotas when the provider service already follows that pattern.
 - Map provider responses into typed models. Keep error/status translation close to the provider
   client and propagate failures rather than returning empty success-shaped data.
+- Keep provider-specific HTTP APIs in dedicated controllers when separating them improves API
+  clarity. The FMP profile endpoint is `POST /api/fmp/profiles`; the request accepts a `symbols`
+  list and the service fetches/caches/persists profile data.
 - Logs must not contain credentials, authorization headers, full credential-bearing URLs, raw
   provider responses, business-summary text, or unsanitized exception details that can reveal them.
 
@@ -40,6 +43,9 @@ or another remote service.
 6. Update controller OpenAPI docs and Postman examples if the external integration is reachable
    through a public endpoint.
 7. Run the provider-specific tests and then compile/package the application.
+8. Review every `.github/skills/*/SKILL.md`; update all skills affected by provider behavior or
+   shared conventions. Update `README.md` and directly related API, configuration, rate-limit, or
+   operational documentation.
 
 ## Verification checklist
 

@@ -1,4 +1,4 @@
-package com.stocknews.news;
+package com.stocknews.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

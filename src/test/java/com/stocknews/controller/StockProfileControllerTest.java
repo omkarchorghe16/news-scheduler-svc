@@ -1,9 +1,7 @@
 package com.stocknews.controller;
 
 import com.stocknews.alphavantage.AlphaVantageOverviewService;
-import com.stocknews.fmp.FmpProfileService;
 import com.stocknews.model.AlphaVantageOverview;
-import com.stocknews.model.FmpStockProfile;
 import com.stocknews.model.FinnhubStockProfile;
 import com.stocknews.model.YahooStockProfile;
 import com.stocknews.service.FinnhubStockProfileService;
@@ -35,9 +33,6 @@ class StockProfileControllerTest {
 
     @MockitoBean
     private AlphaVantageOverviewService alphaVantageOverviewService;
-
-    @MockitoBean
-    private FmpProfileService fmpProfileService;
 
     @Test
     void fetchFinnhubProfilesAcceptsSymbolList() throws Exception {
@@ -76,19 +71,6 @@ class StockProfileControllerTest {
                 .andExpect(status().isOk());
 
         verify(alphaVantageOverviewService).fetchAndSave(List.of("AAPL"));
-    }
-
-    @Test
-    void fetchFmpProfilesAcceptsSymbolList() throws Exception {
-        when(fmpProfileService.fetchAndSave(List.of("AAPL")))
-                .thenReturn(List.of(new FmpStockProfile()));
-
-        mockMvc.perform(post("/api/stocks/fmp/profiles")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"symbols\":[\"AAPL\"]}"))
-                .andExpect(status().isOk());
-
-        verify(fmpProfileService).fetchAndSave(List.of("AAPL"));
     }
 
     @Test

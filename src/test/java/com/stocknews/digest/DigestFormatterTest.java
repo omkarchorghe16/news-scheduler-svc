@@ -1,6 +1,6 @@
 package com.stocknews.digest;
 
-import com.stocknews.news.NewsItem;
+import com.stocknews.client.NewsItem;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
