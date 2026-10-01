@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: news-scheduler-svc
+  namespace: dev
+spec:
+  # Keep one replica: each instance runs the scheduled digest job.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: news-scheduler-svc
+  template:
+    metadata:
+      labels:
+        app: news-scheduler-svc
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: app
+          image: ghcr.io/omkarchorghe16/news-scheduler-svc:REPLACE_WITH_GITHUB_SHA
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://host.docker.internal:5432/postgres
+          volumeMounts:
+            - name: app-secrets
+              mountPath: /app/application-secrets.yml
+              subPath: application-secrets.yml
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: app-secrets
+          secret:
+            secretName: news-scheduler-secrets

@@ -30,6 +30,8 @@ logs/
 # Environment
 .env
 .env.local
+.env.k8s
+.env.k8s
 application-local.yml
 application-local.yaml
 !src/main/resources/application-local.yml

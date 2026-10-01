@@ -113,7 +113,7 @@ jobs:
           mvn --batch-mode \
             org.owasp:dependency-check-maven:check \
             "${update_option[@]}" \
-            -DnvdApiKey="23098EA5-F7B3-4F3E-937D-091D65910E7B" \
+            -DnvdApiKey="${NVD_API_KEY}" \
             -DfailBuildOnCVSS=7 \
             -Dformat=ALL
 
@@ -154,88 +154,73 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker image
-        run: docker build --tag "${{ steps.image.outputs.image }}" .
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-      - name: Push Docker image (deployment artifact)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: docker push "${{ steps.image.outputs.image }}"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Save Docker image for pull requests
-        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-        run: docker save "${{ steps.image.outputs.image }}" | gzip > image.tar.gz
-
-      - name: Upload Docker image for pull requests
-        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-        uses: actions/upload-artifact@v4
+      - name: Build and publish multi-platform image
+        uses: docker/build-push-action@v6
         with:
-          name: docker-image
-          path: image.tar.gz
-          retention-days: 7
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.image.outputs.image }}
 
   deploy:
-    name: Deploy to staging
-    runs-on: ubuntu-latest
+    name: Deploy to Docker Desktop Kubernetes
+    runs-on: [self-hosted, macOS, ARM64]
     needs: package
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment:
       name: staging
-    steps:
-      - name: Deploy published image
-        run: |
-          echo "Published deployment image: ${{ needs.package.outputs.image }}"
-          echo "Configure this step with your Kubernetes, ECS, Azure, or other hosting provider deployment command."
-          echo "The image is available in GitHub Container Registry for the staging environment."
-
-  smoke-tests:
-    name: Smoke tests
-    runs-on: ubuntu-latest
-    needs: [package, deploy]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download packaged artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: application-jar
-          path: target
-
-      - name: Start application
+      - name: Sync secrets and deploy image
+        env:
+          APPLICATION_SECRETS_FILE: ${{ vars.APPLICATION_SECRETS_FILE }}
         run: |
-          nohup java -jar target/*.jar \
-            --spring.profiles.active=test \
-            --server.port=8080 > application.log 2>&1 &
-          echo $! > application.pid
+          set -euo pipefail
+          if [[ -z "${APPLICATION_SECRETS_FILE}" || ! -r "${APPLICATION_SECRETS_FILE}" ]]; then
+            echo "Set staging variable APPLICATION_SECRETS_FILE to a readable local secrets file on the Mac runner." >&2
+            exit 1
+          fi
+          APP_SECRETS_FILE="${APPLICATION_SECRETS_FILE}" bash scripts/deploy-local-k8s.sh "${GITHUB_SHA}"
 
-      - name: Wait for application readiness
+  smoke-tests:
+    name: Verify deployed Kubernetes service
+    runs-on: [self-hosted, macOS, ARM64]
+    needs: [package, deploy]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Check deployed health and metrics
         run: |
+          set -euo pipefail
+          if [[ "$(kubectl config current-context)" != "docker-desktop" ]]; then
+            echo "Refusing smoke test: current kubectl context is not docker-desktop." >&2
+            exit 1
+          fi
+          forward_log="${RUNNER_TEMP}/news-scheduler-port-forward-${GITHUB_RUN_ID}.log"
+          kubectl port-forward --namespace dev service/news-scheduler-svc 18080:80 > "$forward_log" 2>&1 &
+          port_forward_pid=$!
+          trap 'kill "$port_forward_pid" 2>/dev/null || true' EXIT
           for attempt in {1..30}; do
-            if curl --fail --silent http://localhost:8080/actuator/health > health.json; then
+            if curl --fail --silent http://127.0.0.1:18080/actuator/health/readiness > /dev/null; then
               break
             fi
             if [ "$attempt" -eq 30 ]; then
-              cat application.log
+              cat "$forward_log"
               exit 1
             fi
             sleep 2
           done
-          cat health.json
-
-      - name: Verify health endpoint
-        run: curl --fail --silent http://localhost:8080/actuator/health | grep -q '"status":"UP"'
-
-      - name: Verify metrics endpoint
-        run: curl --fail --silent http://localhost:8080/actuator/metrics | grep -q '"names"'
-
-      - name: Verify Prometheus endpoint
-        run: curl --fail --silent http://localhost:8080/actuator/prometheus | grep -q 'jvm_'
-
-      - name: Upload application log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: smoke-test-logs
-          path: application.log
-          if-no-files-found: ignore
+          curl --fail --silent http://127.0.0.1:18080/actuator/health \
+            | grep -q '"status":"UP"'
+          curl --fail --silent http://127.0.0.1:18080/actuator/metrics \
+            | grep -q '"names"'
+          curl --fail --silent http://127.0.0.1:18080/actuator/prometheus \
+            | grep -q 'jvm_'

@@ -202,6 +202,120 @@ start it again with `docker compose up -d`. The container uses `restart: unless-
 Desktop restarts it after a host restart. PostgreSQL remains independent and its data is not managed
 or removed by Compose.
 
+### Deploy to Docker Desktop Kubernetes
+
+The `k8s/` manifests target the **Docker Desktop Kubernetes cluster on this Mac** and keep PostgreSQL
+on the Mac host. The pod connects to `host.docker.internal:5432`; this requires PostgreSQL to accept
+connections from Docker Desktop's Kubernetes network. Do not use this database arrangement for a
+remote cluster. Keep the deployment at one replica because every application instance runs the
+scheduled digest job; increasing replicas can send duplicate digests.
+
+1. Enable Kubernetes in Docker Desktop and make sure its context is active:
+
+   ```bash
+   kubectl config use-context docker-desktop
+   kubectl get nodes
+   kubectl apply -f k8s/00-namespace.yaml
+   ```
+
+2. Create a GitHub Personal Access Token with `read:packages` and create the namespace-scoped pull
+   secret. Do not commit or paste the token into repository files:
+
+   ```bash
+   read -s GHCR_TOKEN
+   echo
+   kubectl create secret docker-registry ghcr-secret -n dev \
+     --docker-server=ghcr.io \
+     --docker-username=omkarchorghe16 \
+     --docker-password="$GHCR_TOKEN" \
+     --dry-run=client -o yaml | kubectl apply -f -
+   unset GHCR_TOKEN
+   ```
+
+   Enter the token at the hidden prompt; the command history stores only the variable reference, not
+   the token itself. Do not save it in source control or shell scripts.
+
+3. Add your actual PostgreSQL credentials and provider/notification keys to the ignored
+   repository-root `application-secrets.yml`. The deploy helper uploads this file as the Kubernetes
+   Secret `news-scheduler-secrets`, mounted read-only at `/app/application-secrets.yml`. Spring
+   already imports that path from `application.yml`, so no secret values are baked into the image or
+   passed on the command line. The Deployment sets `SPRING_DATASOURCE_URL` to
+   `jdbc:postgresql://host.docker.internal:5432/postgres`; change that value in
+   `k8s/deployment.yaml` if your database name or port differs.
+
+   Put credentials under the same Spring property hierarchy used by the application, for example:
+
+   ```yaml
+   spring:
+     datasource:
+       username: "your-postgres-user"
+       password: "your-postgres-password"
+   fmp:
+     api-key: "your-fmp-key"
+   app:
+     apis:
+       finnhub-key: "your-finnhub-key"
+       newsapi-key: "your-newsapi-key"
+       alpha-vantage-key: "your-alpha-vantage-key"
+   ```
+
+   `application.yml` resolves environment variables such as `FMP_API_KEY` for local/Compose use;
+   Kubernetes instead supplies the same Spring properties through the mounted secrets YAML file.
+
+   Kubernetes Secrets are not encrypted just because their values are base64-encoded. This local
+   workflow assumes a single-user Docker Desktop cluster; restrict cluster access and use a managed
+   secret store for shared or production clusters.
+
+4. Pass the commit SHA image tag published by CI to the helper. It verifies the Docker Desktop
+   context and GHCR pull secret, syncs the local secrets file into the cluster, applies the manifests
+   with the requested image tag, and restarts/waits for the Deployment:
+
+   ```bash
+   bash scripts/deploy-local-k8s.sh <github-commit-sha>
+   kubectl get pods,services,ingress -n dev
+   kubectl logs -n dev deployment/news-scheduler-svc
+   ```
+
+   On every deployment, the helper refreshes the cluster Secret from the local file and restarts the
+   pod, so updates to credentials are picked up. The Actuator dependency and health probe settings
+   are already enabled in `pom.xml` and `application.yml`.
+
+5. The ingress manifest expects an NGINX Ingress Controller with class `nginx`. If one is installed,
+   map `dev.news-scheduler.example.com` to `127.0.0.1` in `/etc/hosts` on this Mac and open
+   `http://dev.news-scheduler.example.com`. Otherwise, access the service without ingress:
+
+   ```bash
+   kubectl port-forward -n dev service/news-scheduler-svc 8080:80
+   ```
+
+   Then use `http://localhost:8080`. Readiness and liveness endpoints are at
+   `/actuator/health/readiness` and `/actuator/health/liveness`.
+
+### Automatic deployment from GitHub Actions
+
+The `CI/CD Pipeline` workflow builds and tests on GitHub-hosted runners, publishes a
+`linux/amd64` + `linux/arm64` image to GHCR when code is pushed to `main`, then deploys that commit
+automatically to this Mac's Docker Desktop Kubernetes cluster. Automatic deployment requires a
+self-hosted GitHub Actions runner registered on this Mac with labels `self-hosted`, `macOS`, and
+`ARM64`. Keep Docker Desktop running with Kubernetes enabled, select the `docker-desktop` kubectl
+context, and ensure `kubectl`, Docker, and the `ghcr-secret` in namespace `dev` are configured for
+the runner user. Do not use a self-hosted runner for untrusted pull requests.
+
+In repository Settings, create a GitHub Environment named `staging` and add the
+`APPLICATION_SECRETS_FILE` environment variable containing the absolute path to the ignored
+`application-secrets.yml` on the Mac runner. Ensure the runner's OS account can read the file and
+restrict its permissions (for example, `chmod 600 application-secrets.yml`). This variable stores
+only a local file path, not credentials: the workflow reads the file on the Mac and syncs it into the
+Kubernetes Secret. The credentials themselves are not sent to GitHub Actions or committed. Add an
+environment protection rule requiring approval if deployments should not be automatic.
+
+The runner is the bridge between GitHub Actions and your local cluster; GitHub-hosted runners cannot
+reach Docker Desktop Kubernetes or PostgreSQL on your Mac. The workflow deploys only after pushes to
+`main`; pull requests run build and test checks but do not access deployment secrets or the local
+runner. After deployment, a smoke-test job on the same self-hosted runner port-forwards the deployed
+Service and checks its health, metrics, and Prometheus endpoints. The GHCR pull secret is created once
+as described above; rotate its token in the cluster when needed.
+
 ### 1. Clone the Repository
 
 ```bash

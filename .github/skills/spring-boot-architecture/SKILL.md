@@ -22,6 +22,15 @@ application-wide conventions, affects deployment topology, or introduces a new s
 - For local macOS development, `compose.yaml` runs only the Spring Boot container and connects it to
   host PostgreSQL through `host.docker.internal`; it mounts the ignored `application-secrets.yml`
   read-only and must never copy that file into the image.
+- `k8s/` provides a Docker Desktop Kubernetes deployment that uses the Mac-hosted PostgreSQL through
+  `host.docker.internal`; it keeps one replica because scheduling is instance-local. The local
+  deployment helper syncs the ignored `application-secrets.yml` into a Kubernetes Secret mounted
+  read-only at the path already imported by Spring, and GHCR image pulls use a separate pull Secret.
+- The CI workflow builds/tests on GitHub-hosted runners, publishes multi-platform GHCR images, and
+  deploys `main` through a trusted self-hosted macOS ARM64 runner to Docker Desktop Kubernetes.
+  The protected `staging` environment supplies only the path to the runner's local secrets file;
+  credentials remain on the Mac until synced into the cluster Secret. Post-deploy smoke tests run on
+  that runner against the Kubernetes Service, not a separate local application process.
 
 ## Architecture rules
 
@@ -45,6 +54,8 @@ application-wide conventions, affects deployment topology, or introduces a new s
   mechanism, or new architecture pattern without confirming compatibility and the intended trade-off.
 - Keep the local Docker/PostgreSQL split intact: Compose must not add a PostgreSQL service or volume
   for the Mac-hosted database. Keep local secrets out of the build context and image.
+- Keep the Kubernetes deployment at one replica unless scheduled-work coordination is introduced;
+  never commit live Kubernetes Secrets or credentials.
 
 ## Implementation sequence
 
