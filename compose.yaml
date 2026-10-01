@@ -1,16 +1,60 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-news_scheduler}
+      POSTGRES_USER: ${POSTGRES_USER:-news_scheduler}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   news-scheduler:
     build:
       context: .
       dockerfile: Dockerfile.dev
     image: news-scheduler-svc:local
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://host.docker.internal:5432/postgres}
-    volumes:
-      - type: bind
-        source: ./application-secrets.yml
-        target: /app/application-secrets.yml
-        read_only: true
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-news_scheduler}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-news_scheduler}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+      FMP_API_KEY: ${FMP_API_KEY:-}
+      FMP_BASE_URL: ${FMP_BASE_URL:-https://financialmodelingprep.com/stable}
+      FMP_DAILY_REQUEST_LIMIT: ${FMP_DAILY_REQUEST_LIMIT:-250}
+      FMP_US_EXCHANGES_ONLY: ${FMP_US_EXCHANGES_ONLY:-true}
+      FMP_PROFILE_CACHE_HOURS: ${FMP_PROFILE_CACHE_HOURS:-24}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      NEWSAPI_KEY: ${NEWSAPI_KEY:-}
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-}
+      FINNHUB_BASE_URL: ${FINNHUB_BASE_URL:-https://finnhub.io/api/v1}
+      YAHOO_FINANCE_BASE_URL: ${YAHOO_FINANCE_BASE_URL:-https://query1.finance.yahoo.com}
+      ALPHA_VANTAGE_BASE_URL: ${ALPHA_VANTAGE_BASE_URL:-https://www.alphavantage.co/query}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      SLACK_PORTFOLIO_WEBHOOK_URL: ${SLACK_PORTFOLIO_WEBHOOK_URL:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_WHATSAPP_FROM: ${TWILIO_WHATSAPP_FROM:-}
+      TWILIO_WHATSAPP_TO: ${TWILIO_WHATSAPP_TO:-}
+      WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-false}
+      APP_APIS_TIMEOUT_SECONDS: ${APP_APIS_TIMEOUT_SECONDS:-5}
+      APP_APIS_MAX_RETRIES: ${APP_APIS_MAX_RETRIES:-3}
+      APP_SCHEDULE_CRON_EXPRESSION: ${APP_SCHEDULE_CRON_EXPRESSION:-0 0 9 * * MON-FRI}
+      APP_SCHEDULE_TIMEZONE: ${APP_SCHEDULE_TIMEZONE:-America/Chicago}
+
+volumes:
+  postgres_data:

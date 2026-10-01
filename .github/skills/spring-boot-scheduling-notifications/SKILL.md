@@ -19,7 +19,8 @@ delivery-channel behavior.
   Existing notifier implementations report delivery success as a boolean; preserve that behavior
   unless deliberately changing and testing it.
 - Keep schedules, time zones, watchlists, and notification/provider settings in `AppProperties` and
-  `application.yml`.
+  `application.yml`. For Docker Compose local runs, supported schedule and WhatsApp settings can be
+  overridden through the ignored `.env` file.
 - Never log complete message bodies, raw provider responses, webhook URLs, bot tokens, or auth
   headers. Log operation and safe counts/status instead.
 - Preserve the scheduler's resilience boundary and make failures visible through established

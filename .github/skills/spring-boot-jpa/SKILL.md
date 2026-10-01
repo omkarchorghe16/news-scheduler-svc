@@ -12,6 +12,11 @@ Use this skill when changing persisted data, repository queries, or transactiona
 - PostgreSQL is the application datasource configured in `src/main/resources/application.yml`.
   H2 is configured for tests in `src/test/resources/application.yml`; there is no production H2
   mirror in the current architecture.
+- Local development uses the official PostgreSQL Docker image via `compose.yaml`, with persistent
+  data in the `postgres_data` named volume; app containers connect to `postgres:5432`, while Mac
+  database clients connect to `localhost:5433` by default. The ignored `.env` configures its
+  database name, user, password, and host port. Kubernetes currently has a separate datasource
+  target configured for PostgreSQL on the Mac host.
 - JPA entities live in `com.stocknews.model`; Spring Data repositories live in
   `com.stocknews.repository`; use-case transactions belong in service classes.
 - Preserve existing entity/table/column naming and typed models. Keep provider-specific records

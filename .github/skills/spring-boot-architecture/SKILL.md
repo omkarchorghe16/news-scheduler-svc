@@ -19,9 +19,11 @@ application-wide conventions, affects deployment topology, or introduces a new s
   formatting, and notification delivery; `notification` owns channel-specific delivery.
 - PostgreSQL is the application datasource. H2 is configured for tests only; there is no production
   H2 mirror in the current architecture.
-- For local macOS development, `compose.yaml` runs only the Spring Boot container and connects it to
-  host PostgreSQL through `host.docker.internal`; it mounts the ignored `application-secrets.yml`
-  read-only and must never copy that file into the image.
+- For local development, `compose.yaml` runs Spring Boot with the official PostgreSQL image from
+  Docker Hub, persists database state in a named volume, and binds the host port to loopback. The app
+  uses Compose DNS (`postgres:5432`); Mac database clients use `localhost:5433` by default. The
+  ignored `.env` supplies datasource and provider/notification configuration as container environment
+  variables. Never commit this file or copy it into the image.
 - `k8s/` provides a Docker Desktop Kubernetes deployment that uses the Mac-hosted PostgreSQL through
   `host.docker.internal`; it keeps one replica because scheduling is instance-local. The local
   deployment helper syncs the ignored `application-secrets.yml` into a Kubernetes Secret mounted
@@ -52,8 +54,9 @@ application-wide conventions, affects deployment topology, or introduces a new s
   workflows (for example, `StockSymbolController` under `/api/stock-symbols`).
 - Do not introduce another datasource, production H2 mirroring, migration framework, security
   mechanism, or new architecture pattern without confirming compatibility and the intended trade-off.
-- Keep the local Docker/PostgreSQL split intact: Compose must not add a PostgreSQL service or volume
-  for the Mac-hosted database. Keep local secrets out of the build context and image.
+- Keep local Compose PostgreSQL isolated in its named volume and bound to host loopback; do not
+  conflate it with the separate Mac-hosted PostgreSQL used by the Kubernetes configuration. Keep
+  local `.env` secrets out of the build context and image.
 - Keep the Kubernetes deployment at one replica unless scheduled-work coordination is introduced;
   never commit live Kubernetes Secrets or credentials.
 

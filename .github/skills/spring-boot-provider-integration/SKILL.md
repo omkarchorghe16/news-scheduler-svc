@@ -16,8 +16,8 @@ or another remote service.
   timeout settings. Do not create clients with unbounded timeouts.
 - Bind provider URLs, credentials, limits, and feature switches using `AppProperties` or the
   provider-specific configuration properties class. Document names/defaults in
-  `src/main/resources/application.yml`; keep real values in environment variables or the ignored
-  `application-secrets.yml`.
+  `src/main/resources/application.yml`; keep real values in environment variables, the ignored
+  local `.env` used by Docker Compose, or the ignored `application-secrets.yml` for direct local runs.
 - Normalize stock symbols once at the service boundary with the existing normalizer when applicable.
 - Enforce provider rate limits before issuing requests. Use persisted usage records for durable
   quotas when the provider service already follows that pattern.

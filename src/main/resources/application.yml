@@ -42,7 +42,7 @@ app:
       bot-token: ${TELEGRAM_BOT_TOKEN:}
       chat-id: ${TELEGRAM_CHAT_ID:}
     whatsapp:
-      enabled: false
+      enabled: ${WHATSAPP_ENABLED:false}
       twilio-sid: ${TWILIO_ACCOUNT_SID:}
       twilio-token: ${TWILIO_AUTH_TOKEN:}
       from-number: ${TWILIO_WHATSAPP_FROM:}
@@ -56,8 +56,8 @@ app:
     yahoo-base-url: ${YAHOO_FINANCE_BASE_URL:https://query1.finance.yahoo.com}
     alpha-vantage-key: ${ALPHA_VANTAGE_API_KEY:}
     alpha-vantage-base-url: ${ALPHA_VANTAGE_BASE_URL:https://www.alphavantage.co/query}
-    timeout-seconds: 5
-    max-retries: 3
+    timeout-seconds: ${APP_APIS_TIMEOUT_SECONDS:5}
+    max-retries: ${APP_APIS_MAX_RETRIES:3}
   watchlist:
     us-symbols:
       - AAPL
@@ -83,8 +83,8 @@ app:
       - BHARTIARTL.NS
     portfolio-symbols: []
   schedule:
-    cron-expression: "0 0 9 * * MON-FRI"
-    timezone: "America/Chicago"
+    cron-expression: ${APP_SCHEDULE_CRON_EXPRESSION:0 0 9 * * MON-FRI}
+    timezone: ${APP_SCHEDULE_TIMEZONE:America/Chicago}
 
 management:
   endpoints:

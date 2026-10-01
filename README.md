@@ -181,26 +181,51 @@ through the CI platform's protected secrets; tests that mock providers do not ne
 Credentials pasted into chat or other shared systems should be treated as exposed. Revoke/regenerate
 credentials immediately if they are accidentally exposed.
 
-### Run Spring Boot in Docker with PostgreSQL on macOS
+### Run Spring Boot and PostgreSQL in Docker for development
 
-This keeps PostgreSQL on your Mac; Compose starts only the application container. Ensure PostgreSQL
-is running and listening on port `5432`, and that `application-secrets.yml` contains the database
-username and password (as well as any provider or notification credentials you use). The container
-gets the database URL `jdbc:postgresql://host.docker.internal:5432/postgres`, which reaches the Mac
-host from Docker Desktop and overrides any `localhost` URL in the secrets file. To use a different
-database or port, set `SPRING_DATASOURCE_URL` in a local `.env` file or edit `compose.yaml`.
+Compose automatically reads `.env` from the repository root; it does not read `.env.example`.
+`.env.example` is a tracked template so the required local settings are clear without committing a
+password. Create the ignored runtime file from the template:
 
-From the repository root, build and start the app:
+```bash
+cp .env.example .env
+```
+
+Then set a development-only `POSTGRES_PASSWORD` in `.env`, as well as the
+`FMP_API_KEY`, `FINNHUB_API_KEY`, `NEWSAPI_KEY`, `ALPHA_VANTAGE_API_KEY`, and notification
+credentials you use.
+Compose passes these environment variables to Spring Boot, where `application.yml` already maps them
+to the corresponding settings. Database credentials also come from `.env`. The app container no
+longer needs `application-secrets.yml`; that file remains an optional approach for direct local
+Spring Boot runs and the separate Kubernetes setup. Never commit `.env`; it is ignored by Git.
+The template also includes provider URLs/limits, WhatsApp enablement, provider timeout/retries, and
+digest schedule/timezone settings. Leave defaults unchanged unless you want to override them.
+
+Start both services from the repository root:
 
 ```bash
 docker compose up --build -d
 ```
 
-This builds the application from source inside Docker, so a local Maven build is not required. View
-the logs with `docker compose logs -f news-scheduler`, stop the app with `docker compose down`, or
-start it again with `docker compose up -d`. The container uses `restart: unless-stopped`, so Docker
-Desktop restarts it after a host restart. PostgreSQL remains independent and its data is not managed
-or removed by Compose.
+The app waits for PostgreSQL to become healthy. Inside Docker, the app connects to host `postgres`,
+port `5432`. On your Mac, connect using `localhost`, port `5433`, database `news_scheduler`, user
+`news_scheduler`, and the password from `.env`. The database port is bound to the Mac loopback only.
+For example, enter those values in DBeaver, pgAdmin, or IntelliJ's Database tool. If you have the
+PostgreSQL command-line client installed, connect with:
+
+```bash
+psql -h localhost -p 5433 -U news_scheduler -d news_scheduler
+```
+
+The database data persists in the Docker named volume `postgres_data`, including after
+`docker compose down`. To delete this dev database permanently, use `docker compose down --volumes`;
+that removes the volume and all data in it. View logs with `docker compose logs -f news-scheduler`,
+stop containers with `docker compose down`, or restart with `docker compose up -d`. The host port can
+be changed by setting `POSTGRES_HOST_PORT` in `.env`.
+
+This Compose database is separate from any PostgreSQL already installed on the Mac. It is also
+separate from the Kubernetes configuration below, which still targets PostgreSQL on the Mac at
+`host.docker.internal:5432`.
 
 ### Deploy to Docker Desktop Kubernetes
 
