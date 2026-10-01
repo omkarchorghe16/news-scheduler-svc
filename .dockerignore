@@ -1,0 +1,10 @@
+.git
+.idea
+target
+data
+.env
+.env.*
+application-secrets.yml
+application-secrets.yaml
+application-local.yml
+application-local.yaml

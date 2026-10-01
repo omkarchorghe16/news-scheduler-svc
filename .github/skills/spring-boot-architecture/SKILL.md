@@ -19,6 +19,9 @@ application-wide conventions, affects deployment topology, or introduces a new s
   formatting, and notification delivery; `notification` owns channel-specific delivery.
 - PostgreSQL is the application datasource. H2 is configured for tests only; there is no production
   H2 mirror in the current architecture.
+- For local macOS development, `compose.yaml` runs only the Spring Boot container and connects it to
+  host PostgreSQL through `host.docker.internal`; it mounts the ignored `application-secrets.yml`
+  read-only and must never copy that file into the image.
 
 ## Architecture rules
 
@@ -40,6 +43,8 @@ application-wide conventions, affects deployment topology, or introduces a new s
   workflows (for example, `StockSymbolController` under `/api/stock-symbols`).
 - Do not introduce another datasource, production H2 mirroring, migration framework, security
   mechanism, or new architecture pattern without confirming compatibility and the intended trade-off.
+- Keep the local Docker/PostgreSQL split intact: Compose must not add a PostgreSQL service or volume
+  for the Mac-hosted database. Keep local secrets out of the build context and image.
 
 ## Implementation sequence
 

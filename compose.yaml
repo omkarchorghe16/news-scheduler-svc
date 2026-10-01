@@ -1,0 +1,16 @@
+services:
+  news-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: news-scheduler-svc:local
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://host.docker.internal:5432/postgres}
+    volumes:
+      - type: bind
+        source: ./application-secrets.yml
+        target: /app/application-secrets.yml
+        read_only: true

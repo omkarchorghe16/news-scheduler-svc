@@ -166,9 +166,9 @@ app:
 
 Create it locally without adding it to Git, restrict its filesystem permissions (for example,
 `chmod 600 application-secrets.yml` on macOS/Linux), and check `git status` to confirm it is ignored.
-The import is optional, so the application can still start when the file is absent. This is suitable
-for local development only; for deployed environments, use the platform secret store or environment
-variables rather than copying this file into the container/image.
+The import is optional for direct local runs. The local Docker Compose setup below mounts this file
+read-only into the running container; it is excluded from the Docker build context and image. For
+deployed environments, use the platform secret store or environment variables instead.
 
 For deployment, save each credential in the deployment platform's secret store (or a cloud secret
 manager such as AWS Secrets Manager, Azure Key Vault, or Google Secret Manager), then expose it to
@@ -180,6 +180,27 @@ through the CI platform's protected secrets; tests that mock providers do not ne
 
 Credentials pasted into chat or other shared systems should be treated as exposed. Revoke/regenerate
 credentials immediately if they are accidentally exposed.
+
+### Run Spring Boot in Docker with PostgreSQL on macOS
+
+This keeps PostgreSQL on your Mac; Compose starts only the application container. Ensure PostgreSQL
+is running and listening on port `5432`, and that `application-secrets.yml` contains the database
+username and password (as well as any provider or notification credentials you use). The container
+gets the database URL `jdbc:postgresql://host.docker.internal:5432/postgres`, which reaches the Mac
+host from Docker Desktop and overrides any `localhost` URL in the secrets file. To use a different
+database or port, set `SPRING_DATASOURCE_URL` in a local `.env` file or edit `compose.yaml`.
+
+From the repository root, build and start the app:
+
+```bash
+docker compose up --build -d
+```
+
+This builds the application from source inside Docker, so a local Maven build is not required. View
+the logs with `docker compose logs -f news-scheduler`, stop the app with `docker compose down`, or
+start it again with `docker compose up -d`. The container uses `restart: unless-stopped`, so Docker
+Desktop restarts it after a host restart. PostgreSQL remains independent and its data is not managed
+or removed by Compose.
 
 ### 1. Clone the Repository
 
