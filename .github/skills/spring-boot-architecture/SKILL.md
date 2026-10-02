@@ -33,7 +33,10 @@ application-wide conventions, affects deployment topology, or introduces a new s
   owner/repository IDs on `main` for image publishing and the `staging` environment for deployment;
   `infra/aws/github-oidc-trust-policy.json` is the matching policy for an existing role, and
   `infra/aws/github-actions-ecr-policy.json` scopes image-publish permissions to this repository's
-  ECR ARN while allowing the required account-level ECR authentication action. The template can
+  ECR ARN while allowing the required account-level ECR authentication action. The CloudFormation
+  template can either create ECR or reference a pre-created repository using its ARN and URI
+  parameters; pass the existing-repository parameters if CI bootstrapped ECR before the stack.
+  The template can
   reference an existing account-level
   GitHub OIDC provider or create one. The Fargate task uses public subnets for outbound provider calls, but its security
   group permits inbound application traffic only from the ALB. RDS remains private.

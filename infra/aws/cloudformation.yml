@@ -22,6 +22,19 @@ Parameters:
     Type: String
     Default: ""
     Description: Existing account-level GitHub OIDC provider ARN; leave blank to create one.
+  UseExistingEcrRepository:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Use the existing ECR repository instead of creating one in this stack.
+  ExistingEcrRepositoryArn:
+    Type: String
+    Default: ""
+    Description: ARN of the existing ECR repository when UseExistingEcrRepository is true.
+  ExistingEcrRepositoryUri:
+    Type: String
+    Default: ""
+    Description: URI of the existing ECR repository when UseExistingEcrRepository is true.
   CertificateArn:
     Type: String
     Description: ACM certificate ARN in this region for the public HTTPS endpoint.
@@ -52,6 +65,7 @@ Conditions:
   CreateMigrationHostEnabled: !Equals [!Ref CreateMigrationHost, "true"]
   DatabaseMultiAZEnabled: !Equals [!Ref DatabaseMultiAZ, "true"]
   CreateGitHubOidcProvider: !Equals [!Ref ExistingGitHubOidcProviderArn, ""]
+  CreateEcrRepository: !Equals [!Ref UseExistingEcrRepository, "false"]
 
 Resources:
   Vpc:
@@ -252,6 +266,7 @@ Resources:
 
   EcrRepository:
     Type: AWS::ECR::Repository
+    Condition: CreateEcrRepository
     Properties:
       RepositoryName: news-scheduler-svc
       ImageScanningConfiguration:
@@ -314,7 +329,6 @@ Resources:
 
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
-    DependsOn: EcrRepository
     Properties:
       Family: news-scheduler-svc
       Cpu: "512"
@@ -325,7 +339,13 @@ Resources:
       ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
       ContainerDefinitions:
         - Name: app
-          Image: !Sub "${EcrRepository.RepositoryUri}:bootstrap"
+          Image: !Join
+            - ""
+            - - !If
+                - CreateEcrRepository
+                - !GetAtt EcrRepository.RepositoryUri
+                - !Ref ExistingEcrRepositoryUri
+              - ":bootstrap"
           Essential: true
           PortMappings:
             - ContainerPort: 8080
@@ -526,7 +546,10 @@ Resources:
                   - ecr:InitiateLayerUpload
                   - ecr:PutImage
                   - ecr:UploadLayerPart
-                Resource: !GetAtt EcrRepository.Arn
+                Resource: !If
+                  - CreateEcrRepository
+                  - !GetAtt EcrRepository.Arn
+                  - !Ref ExistingEcrRepositoryArn
               - Effect: Allow
                 Action:
                   - ecs:DescribeTaskDefinition
@@ -594,7 +617,10 @@ Outputs:
       - !GetAtt GitHubOidcProvider.Arn
       - !Ref ExistingGitHubOidcProviderArn
   EcrRepositoryUri:
-    Value: !GetAtt EcrRepository.RepositoryUri
+    Value: !If
+      - CreateEcrRepository
+      - !GetAtt EcrRepository.RepositoryUri
+      - !Ref ExistingEcrRepositoryUri
   EcsClusterName:
     Value: !Ref EcsCluster
   EcsServiceName:

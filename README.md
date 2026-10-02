@@ -341,6 +341,9 @@ Before provisioning:
        GitHubRepositoryName=news-scheduler-svc \
        GitHubRepositoryId=1368822070 \
        CertificateArn=arn:aws:acm:us-east-2:ACCOUNT_ID:certificate/CERTIFICATE_ID \
+       UseExistingEcrRepository=true \
+       ExistingEcrRepositoryArn=arn:aws:ecr:us-east-2:221934031392:repository/news-scheduler-svc \
+       ExistingEcrRepositoryUri=221934031392.dkr.ecr.us-east-2.amazonaws.com/news-scheduler-svc \
        CreateMigrationHost=true \
        ScheduleCronExpression="0 0 9 * * MON-FRI" \
        ScheduleTimeZone=America/Chicago
@@ -388,6 +391,19 @@ CloudFormation manages the role). The ECR repository must also exist before CI c
 If creating the stack around an already existing role, CloudFormation cannot adopt that role
 automatically; apply the trust and permission policies above, or arrange to import the role into
 the stack before deploying the template.
+
+The ECR repository `news-scheduler-svc` has been created in `us-east-2` in this AWS project so the
+current GitHub image push can use it. Its URI is
+`221934031392.dkr.ecr.us-east-2.amazonaws.com/news-scheduler-svc`. Use the following CloudFormation
+parameters when deploying the full stack so it references this existing repository rather than
+trying to create a duplicate. For a new setup with no repository, omit these parameters and the
+stack will create it:
+
+```text
+UseExistingEcrRepository=true
+ExistingEcrRepositoryArn=arn:aws:ecr:us-east-2:221934031392:repository/news-scheduler-svc
+ExistingEcrRepositoryUri=221934031392.dkr.ecr.us-east-2.amazonaws.com/news-scheduler-svc
+```
 
 The temporary migration host is an SSM-managed EC2 instance with no inbound ports. It allows the
 Compose PostgreSQL data to be restored into private RDS without making the database internet
@@ -467,11 +483,10 @@ aws cloudformation deploy \
     GitHubOwnerId=75207496 \
     GitHubRepositoryName=news-scheduler-svc \
     GitHubRepositoryId=1368822070 \
-    GitHubOwner=omkarchorghe16 \
-    GitHubOwnerId=75207496 \
-    GitHubRepositoryName=news-scheduler-svc \
-    GitHubRepositoryId=1368822070 \
     CertificateArn=arn:aws:acm:us-east-2:ACCOUNT_ID:certificate/CERTIFICATE_ID \
+    UseExistingEcrRepository=true \
+    ExistingEcrRepositoryArn=arn:aws:ecr:us-east-2:221934031392:repository/news-scheduler-svc \
+    ExistingEcrRepositoryUri=221934031392.dkr.ecr.us-east-2.amazonaws.com/news-scheduler-svc \
     CreateMigrationHost=false \
     DatabaseInstanceClass=db.t4g.micro \
     DatabaseMultiAZ=false \
