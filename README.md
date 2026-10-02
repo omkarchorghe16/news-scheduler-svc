@@ -336,7 +336,10 @@ Before provisioning:
      --region us-east-2 \
      --capabilities CAPABILITY_NAMED_IAM \
      --parameter-overrides \
-       GitHubRepository=omkarchorghe16/news-scheduler-svc \
+       GitHubOwner=omkarchorghe16 \
+       GitHubOwnerId=75207496 \
+       GitHubRepositoryName=news-scheduler-svc \
+       GitHubRepositoryId=1368822070 \
        CertificateArn=arn:aws:acm:us-east-2:ACCOUNT_ID:certificate/CERTIFICATE_ID \
        CreateMigrationHost=true \
        ScheduleCronExpression="0 0 9 * * MON-FRI" \
@@ -350,11 +353,17 @@ using the existing provider ARN:
 ExistingGitHubOidcProviderArn=arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com
 ```
 
+This repository was created after July 15, 2026, so GitHub issues OIDC tokens with immutable
+subjects that include the owner ID (`75207496`) and repository ID (`1368822070`). The package job's
+subject is `repo:omkarchorghe16@75207496/news-scheduler-svc@1368822070:ref:refs/heads/main`; the
+deploy job's subject uses the same prefix followed by `:environment:staging`. Name-only trust
+subjects do not match this repository's tokens.
+
 The CI workflow assumes the role named `GitHubActionsRole`. For an existing role with that name,
 update its trust policy to match
 [`infra/aws/github-oidc-trust-policy.json`](infra/aws/github-oidc-trust-policy.json). That policy
 allows the package job's `main` branch token and the deploy job's `staging` environment token, and
-only the GitHub OIDC provider in account `221934031392`. Apply it to the existing role with:
+only the GitHub OIDC provider in AWS account `221934031392`. Apply it to the existing role with:
 
 ```bash
 aws iam update-assume-role-policy \
@@ -443,7 +452,14 @@ aws cloudformation deploy \
   --region us-east-2 \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    GitHubRepository=omkarchorghe16/news-scheduler-svc \
+    GitHubOwner=omkarchorghe16 \
+    GitHubOwnerId=75207496 \
+    GitHubRepositoryName=news-scheduler-svc \
+    GitHubRepositoryId=1368822070 \
+    GitHubOwner=omkarchorghe16 \
+    GitHubOwnerId=75207496 \
+    GitHubRepositoryName=news-scheduler-svc \
+    GitHubRepositoryId=1368822070 \
     CertificateArn=arn:aws:acm:us-east-2:ACCOUNT_ID:certificate/CERTIFICATE_ID \
     CreateMigrationHost=false \
     DatabaseInstanceClass=db.t4g.micro \

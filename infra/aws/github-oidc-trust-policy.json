@@ -13,8 +13,8 @@
         },
         "StringLike": {
           "token.actions.githubusercontent.com:sub": [
-            "repo:omkarchorghe16/news-scheduler-svc:ref:refs/heads/main",
-            "repo:omkarchorghe16/news-scheduler-svc:environment:staging"
+            "repo:omkarchorghe16@75207496/news-scheduler-svc@1368822070:ref:refs/heads/main",
+            "repo:omkarchorghe16@75207496/news-scheduler-svc@1368822070:environment:staging"
           ]
         }
       }

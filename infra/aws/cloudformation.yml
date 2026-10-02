@@ -2,10 +2,22 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: AWS foundation for the news scheduler on ECS Fargate and RDS PostgreSQL.
 
 Parameters:
-  GitHubRepository:
+  GitHubOwner:
     Type: String
-    Default: omkarchorghe16/news-scheduler-svc
-    Description: GitHub owner/repository allowed to publish and deploy from main.
+    Default: omkarchorghe16
+    Description: GitHub owner allowed to publish and deploy from main.
+  GitHubOwnerId:
+    Type: String
+    Default: "75207496"
+    Description: Immutable GitHub owner ID used in OIDC subject conditions.
+  GitHubRepositoryName:
+    Type: String
+    Default: news-scheduler-svc
+    Description: GitHub repository allowed to publish and deploy from main.
+  GitHubRepositoryId:
+    Type: String
+    Default: "1368822070"
+    Description: Immutable GitHub repository ID used in OIDC subject conditions.
   ExistingGitHubOidcProviderArn:
     Type: String
     Default: ""
@@ -494,8 +506,8 @@ Resources:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
                 token.actions.githubusercontent.com:sub:
-                  - !Sub "repo:${GitHubRepository}:ref:refs/heads/main"
-                  - !Sub "repo:${GitHubRepository}:environment:staging"
+                  - !Sub "repo:${GitHubOwner}@${GitHubOwnerId}/${GitHubRepositoryName}@${GitHubRepositoryId}:ref:refs/heads/main"
+                  - !Sub "repo:${GitHubOwner}@${GitHubOwnerId}/${GitHubRepositoryName}@${GitHubRepositoryId}:environment:staging"
       Policies:
         - PolicyName: PublishImageAndDeployEcsService
           PolicyDocument:
