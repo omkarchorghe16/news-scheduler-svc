@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -ne 1 || ! $1 =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
-  printf 'Usage: bash scripts/deploy-local-k8s.sh <published-image-tag>\n' >&2
+  printf 'Usage: bash scripts/deploy-local-k8s.sh <local-image-tag>\n' >&2
   exit 2
 fi
 
@@ -11,9 +11,15 @@ if ! command -v kubectl >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v docker >/dev/null 2>&1; then
+  printf 'Docker is required to verify the locally built application image.\n' >&2
+  exit 1
+fi
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 secret_file="${APP_SECRETS_FILE:-${repo_root}/application-secrets.yml}"
 deployment_file="${repo_root}/k8s/deployment.yaml"
+image="news-scheduler-svc:$1"
 
 if [[ ! -s "$secret_file" ]]; then
   printf 'Missing or empty %s. Add local DB credentials and required provider keys first.\n' "$secret_file" >&2
@@ -26,9 +32,8 @@ if [[ "$current_context" != "docker-desktop" ]]; then
   exit 1
 fi
 
-if ! kubectl get secret ghcr-secret --namespace dev >/dev/null 2>&1; then
-  printf 'Missing namespace-scoped GHCR pull secret ghcr-secret in namespace dev.\n' >&2
-  printf 'Create it once using the README Docker Desktop Kubernetes instructions.\n' >&2
+if ! docker image inspect "$image" >/dev/null 2>&1; then
+  printf 'Local image %s was not found. Build it using the README instructions first.\n' "$image" >&2
   exit 1
 fi
 
@@ -43,8 +48,7 @@ kubectl apply \
   -f "${repo_root}/k8s/service.yaml" \
   -f "${repo_root}/k8s/ingress.yaml"
 
-image="ghcr.io/omkarchorghe16/news-scheduler-svc:$1"
-sed "s|ghcr.io/omkarchorghe16/news-scheduler-svc:REPLACE_WITH_GITHUB_SHA|${image}|" "$deployment_file" \
+sed "s|news-scheduler-svc:REPLACE_WITH_LOCAL_TAG|${image}|" "$deployment_file" \
   | kubectl apply -f -
 
 kubectl rollout restart --namespace dev deployment/news-scheduler-svc

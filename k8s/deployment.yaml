@@ -14,11 +14,9 @@ spec:
       labels:
         app: news-scheduler-svc
     spec:
-      imagePullSecrets:
-        - name: ghcr-secret
       containers:
         - name: app
-          image: ghcr.io/omkarchorghe16/news-scheduler-svc:REPLACE_WITH_GITHUB_SHA
+          image: news-scheduler-svc:REPLACE_WITH_LOCAL_TAG
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

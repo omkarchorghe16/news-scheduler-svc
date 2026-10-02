@@ -15,6 +15,7 @@ A complete Java Spring Boot application that fetches daily stock market news for
 - **Sector and Stock Management**: CRUD endpoints for sectors and sector-associated stock tickers, including bulk stock creation
 - **API Documentation**: Interactive Swagger UI and generated OpenAPI specification
 - **Database**: PostgreSQL for application data; H2 is used only by tests
+- **AWS Deployment**: GitHub Actions OIDC, Amazon ECR, ECS Fargate, private RDS PostgreSQL, and Secrets Manager
 - **Development Standards**: Repository-specific Copilot instructions and reusable backend skills for architecture, REST APIs, JPA, provider integrations, scheduling/notifications, and testing
 - **Configurable Everything**: @ConfigurationProperties binds all settings from environment variables
 
@@ -243,22 +244,12 @@ scheduled digest job; increasing replicas can send duplicate digests.
    kubectl apply -f k8s/00-namespace.yaml
    ```
 
-2. Create a GitHub Personal Access Token with `read:packages` and create the namespace-scoped pull
-   secret. Do not commit or paste the token into repository files:
+2. Build the image locally; Docker Desktop Kubernetes uses the image from the local Docker engine:
 
    ```bash
-   read -s GHCR_TOKEN
-   echo
-   kubectl create secret docker-registry ghcr-secret -n dev \
-     --docker-server=ghcr.io \
-     --docker-username=omkarchorghe16 \
-     --docker-password="$GHCR_TOKEN" \
-     --dry-run=client -o yaml | kubectl apply -f -
-   unset GHCR_TOKEN
+   mvn --batch-mode -DskipTests package
+   docker build -t news-scheduler-svc:local .
    ```
-
-   Enter the token at the hidden prompt; the command history stores only the variable reference, not
-   the token itself. Do not save it in source control or shell scripts.
 
 3. Add your actual PostgreSQL credentials and provider/notification keys to the ignored
    repository-root `application-secrets.yml`. The deploy helper uploads this file as the Kubernetes
@@ -291,19 +282,20 @@ scheduled digest job; increasing replicas can send duplicate digests.
    workflow assumes a single-user Docker Desktop cluster; restrict cluster access and use a managed
    secret store for shared or production clusters.
 
-4. Pass the commit SHA image tag published by CI to the helper. It verifies the Docker Desktop
-   context and GHCR pull secret, syncs the local secrets file into the cluster, applies the manifests
-   with the requested image tag, and restarts/waits for the Deployment:
+4. Pass the local image tag to the helper. It verifies the Docker Desktop context and image,
+   syncs the local secrets file into the cluster, applies the manifests, and restarts/waits for the
+   Deployment:
 
    ```bash
-   bash scripts/deploy-local-k8s.sh <github-commit-sha>
+   bash scripts/deploy-local-k8s.sh local
    kubectl get pods,services,ingress -n dev
    kubectl logs -n dev deployment/news-scheduler-svc
    ```
 
-   On every deployment, the helper refreshes the cluster Secret from the local file and restarts the
-   pod, so updates to credentials are picked up. The Actuator dependency and health probe settings
-   are already enabled in `pom.xml` and `application.yml`.
+   Rebuild the image before redeploying after application changes. On every deployment, the helper
+   refreshes the cluster Secret from the local file and restarts the pod, so updates to credentials
+   are picked up. The Actuator dependency and health probe settings are already enabled in `pom.xml`
+   and `application.yml`.
 
 5. The ingress manifest expects an NGINX Ingress Controller with class `nginx`. If one is installed,
    map `dev.news-scheduler.example.com` to `127.0.0.1` in `/etc/hosts` on this Mac and open
@@ -316,30 +308,145 @@ scheduled digest job; increasing replicas can send duplicate digests.
    Then use `http://localhost:8080`. Readiness and liveness endpoints are at
    `/actuator/health/readiness` and `/actuator/health/liveness`.
 
-### Automatic deployment from GitHub Actions
+### Deploy to AWS ECS and RDS
 
-The `CI/CD Pipeline` workflow builds and tests on GitHub-hosted runners, publishes a
-`linux/amd64` + `linux/arm64` image to GHCR when code is pushed to `main`, then deploys that commit
-automatically to this Mac's Docker Desktop Kubernetes cluster. Automatic deployment requires a
-self-hosted GitHub Actions runner registered on this Mac with labels `self-hosted`, `macOS`, and
-`ARM64`. Keep Docker Desktop running with Kubernetes enabled, select the `docker-desktop` kubectl
-context, and ensure `kubectl`, Docker, and the `ghcr-secret` in namespace `dev` are configured for
-the runner user. Do not use a self-hosted runner for untrusted pull requests.
+`infra/aws/cloudformation.yml` provisions an ECR repository, an ECS Fargate service, a public ALB
+with HTTPS, private RDS for PostgreSQL, Secrets Manager secrets, CloudWatch logs, and a GitHub OIDC
+deployment role in `us-east-2`. The Fargate service starts with zero tasks until the first successful
+CI deployment. It is intentionally kept at one task because each instance runs the scheduled digest.
+The RDS instance is private and encrypted. Fargate tasks run in public subnets with public IPs so they
+can call news/notification providers without a NAT gateway; their security group accepts application
+traffic only from the ALB. This avoids NAT gateway charges but is a cost-conscious starting topology,
+not a substitute for a reviewed production network design.
 
-In repository Settings, create a GitHub Environment named `staging` and add the
-`APPLICATION_SECRETS_FILE` environment variable containing the absolute path to the ignored
-`application-secrets.yml` on the Mac runner. Ensure the runner's OS account can read the file and
-restrict its permissions (for example, `chmod 600 application-secrets.yml`). This variable stores
-only a local file path, not credentials: the workflow reads the file on the Mac and syncs it into the
-Kubernetes Secret. The credentials themselves are not sent to GitHub Actions or committed. Add an
-environment protection rule requiring approval if deployments should not be automatic.
+Before provisioning:
 
-The runner is the bridge between GitHub Actions and your local cluster; GitHub-hosted runners cannot
-reach Docker Desktop Kubernetes or PostgreSQL on your Mac. The workflow deploys only after pushes to
-`main`; pull requests run build and test checks but do not access deployment secrets or the local
-runner. After deployment, a smoke-test job on the same self-hosted runner port-forwards the deployed
-Service and checks its health, metrics, and Prometheus endpoints. The GHCR pull secret is created once
-as described above; rotate its token in the cluster when needed.
+1. Request and validate an ACM certificate in `us-east-2` for the public API hostname. The DNS name
+   must resolve to the ALB created by the stack.
+2. Ensure the AWS account does not already have a GitHub Actions OIDC provider for
+   `token.actions.githubusercontent.com`. If it does, reuse that provider rather than creating a
+   duplicate; the template must be adapted to reference the existing provider.
+3. Deploy the stack, substituting your ACM certificate ARN:
+
+   ```bash
+   aws cloudformation deploy \
+     --template-file infra/aws/cloudformation.yml \
+     --stack-name news-scheduler-svc \
+     --region us-east-2 \
+     --capabilities CAPABILITY_NAMED_IAM \
+     --parameter-overrides \
+       GitHubRepository=omkarchorghe16/news-scheduler-svc \
+       CertificateArn=arn:aws:acm:us-east-2:ACCOUNT_ID:certificate/CERTIFICATE_ID \
+       CreateMigrationHost=true \
+       ScheduleCronExpression="0 0 9 * * MON-FRI" \
+       ScheduleTimeZone=America/Chicago
+   ```
+
+The temporary migration host is an SSM-managed EC2 instance with no inbound ports. It allows the
+Compose PostgreSQL data to be restored into private RDS without making the database internet
+accessible. Install the AWS CLI, Session Manager plugin, and PostgreSQL 17 client tools locally.
+Export the Compose data before connecting:
+
+```bash
+pg_dump --host localhost --port 5433 --username news_scheduler \
+  --dbname news_scheduler --format=custom --no-owner --no-acl \
+  --file news_scheduler.dump
+```
+
+Read the `MigrationHostInstanceId`, `DatabaseEndpoint`, `DatabaseSecretArn`, and
+`ApplicationDatabaseSecretArn` stack outputs. Retrieve the generated master and application
+credentials from Secrets Manager without placing them in source control or command history. Start
+an SSM port-forward (leave this terminal open):
+
+```bash
+aws ssm start-session \
+  --target MIGRATION_INSTANCE_ID \
+  --document-name AWS-StartPortForwardingSessionToRemoteHost \
+  --parameters '{"host":["RDS_ENDPOINT"],"portNumber":["5432"],"localPortNumber":["15432"]}' \
+  --region us-east-2
+```
+
+In another terminal, connect as the generated RDS master user. Create the restricted runtime role
+using the generated password from `ApplicationDatabaseSecretArn`, then make it the database owner:
+
+```bash
+export PGSSLMODE=require
+psql --host 127.0.0.1 --port 15432 --username newsadmin \
+  --dbname postgres --set ON_ERROR_STOP=1
+```
+
+At the `psql` prompt, run:
+
+```sql
+CREATE ROLE news_scheduler_app LOGIN;
+\password news_scheduler_app
+ALTER DATABASE news_scheduler OWNER TO news_scheduler_app;
+\connect news_scheduler
+ALTER SCHEMA public OWNER TO news_scheduler_app;
+\q
+```
+
+Restore the dump as `news_scheduler_app` so the imported tables are owned by the runtime role. For a
+fresh database, skip the dump/restore but still create the runtime role:
+
+```bash
+pg_restore --host 127.0.0.1 --port 15432 --username news_scheduler_app \
+  --dbname news_scheduler --no-owner --no-acl news_scheduler.dump
+```
+
+In Secrets Manager, replace the empty values in the `ApplicationSecretArn` JSON with the provider
+and notification credentials you use. The generated application database secret's password must
+match the value entered with `\password`; set `WHATSAPP_ENABLED` to `"true"` only when WhatsApp
+delivery should be active. `ScheduleCronExpression` and `ScheduleTimeZone` are CloudFormation
+parameters if the default schedule is not appropriate. A running task does not automatically reload
+changed secret values; force a new ECS deployment after rotating them:
+
+```bash
+aws ecs update-service --cluster news-scheduler --service news-scheduler-svc \
+  --force-new-deployment --region us-east-2
+```
+
+After confirming the restored data, redeploy the stack with `CreateMigrationHost=false` to remove
+the temporary host and its RDS security-group access:
+
+```bash
+aws cloudformation deploy \
+  --template-file infra/aws/cloudformation.yml \
+  --stack-name news-scheduler-svc \
+  --region us-east-2 \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    GitHubRepository=omkarchorghe16/news-scheduler-svc \
+    CertificateArn=arn:aws:acm:us-east-2:ACCOUNT_ID:certificate/CERTIFICATE_ID \
+    CreateMigrationHost=false \
+    DatabaseInstanceClass=db.t4g.micro \
+    DatabaseMultiAZ=false \
+    ScheduleCronExpression="0 0 9 * * MON-FRI" \
+    ScheduleTimeZone=America/Chicago
+```
+
+In GitHub repository **Settings → Secrets and variables → Actions → Variables**, set:
+
+| Variable | Value |
+| --- | --- |
+| `AWS_ROLE_ARN` | The `GitHubActionsRoleArn` CloudFormation output |
+| `AWS_REGION` | `us-east-2` |
+| `PUBLIC_BASE_URL` | The HTTPS URL for the DNS name covered by the ACM certificate |
+
+Create a GitHub Environment named `staging`, restrict its deployment branches to `main`, and configure
+required reviewers if deployments need approval. The CloudFormation role trusts only this
+repository's `main` branch and the `staging` environment. GitHub Actions exchanges its OIDC token
+for short-lived AWS credentials; do not add
+long-lived AWS access keys to GitHub. On pushes to `main`, the workflow tests the app, publishes a
+commit-tagged image to ECR, updates the ECS service, waits for stability, and checks health,
+metrics, and Prometheus endpoints over HTTPS. Pull requests build and test without AWS credentials.
+
+The HTTPS ALB makes the existing application routes publicly reachable; HTTPS encrypts transport
+but does not add application authentication. Review endpoint access and add the intended
+authentication or network restrictions before using this as a public production API.
+
+The Docker Desktop Kubernetes manifests and `scripts/deploy-local-k8s.sh` remain available for
+single-user local testing only. They are no longer used by the AWS CI/CD workflow.
 
 ### 1. Clone the Repository
 

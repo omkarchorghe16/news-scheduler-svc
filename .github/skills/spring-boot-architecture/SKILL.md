@@ -24,15 +24,23 @@ application-wide conventions, affects deployment topology, or introduces a new s
   uses Compose DNS (`postgres:5432`); Mac database clients use `localhost:5433` by default. The
   ignored `.env` supplies datasource and provider/notification configuration as container environment
   variables. Never commit this file or copy it into the image.
-- `k8s/` provides a Docker Desktop Kubernetes deployment that uses the Mac-hosted PostgreSQL through
-  `host.docker.internal`; it keeps one replica because scheduling is instance-local. The local
-  deployment helper syncs the ignored `application-secrets.yml` into a Kubernetes Secret mounted
-  read-only at the path already imported by Spring, and GHCR image pulls use a separate pull Secret.
-- The CI workflow builds/tests on GitHub-hosted runners, publishes multi-platform GHCR images, and
-  deploys `main` through a trusted self-hosted macOS ARM64 runner to Docker Desktop Kubernetes.
-  The protected `staging` environment supplies only the path to the runner's local secrets file;
-  credentials remain on the Mac until synced into the cluster Secret. Post-deploy smoke tests run on
-  that runner against the Kubernetes Service, not a separate local application process.
+- `k8s/` and `scripts/deploy-local-k8s.sh` remain an optional single-user Docker Desktop workflow
+  using PostgreSQL on the Mac host. It keeps one replica because scheduling is instance-local and
+  syncs the ignored local secrets file into a Kubernetes Secret.
+- `infra/aws/cloudformation.yml` provisions the AWS deployment: public HTTPS ALB, ECS Fargate,
+  private encrypted RDS PostgreSQL, ECR, Secrets Manager, CloudWatch Logs, and a repository-scoped
+  GitHub OIDC role. The Fargate task uses public subnets for outbound provider calls, but its security
+  group permits inbound application traffic only from the ALB. RDS remains private.
+- The CI workflow builds and tests on GitHub-hosted runners, pushes a uniquely tagged image to ECR,
+  and deploys `main` to ECS using short-lived OIDC credentials. Post-deploy smoke tests use the
+  configured public HTTPS URL. The service remains at one task because scheduled jobs are
+  instance-local; ECS deployments stop the old task before starting its replacement to avoid
+  duplicate digests.
+- Runtime provider/notification values and the generated application database login are stored in
+  Secrets Manager. RDS's generated master credential is reserved for setup/migration. An optional
+  temporary SSM-only EC2 host provides a private tunnel for importing the local Compose database;
+  remove it when setup is complete. No AWS credentials or live application secrets belong in GitHub
+  workflow files or the repository.
 
 ## Architecture rules
 
@@ -57,8 +65,9 @@ application-wide conventions, affects deployment topology, or introduces a new s
 - Keep local Compose PostgreSQL isolated in its named volume and bound to host loopback; do not
   conflate it with the separate Mac-hosted PostgreSQL used by the Kubernetes configuration. Keep
   local `.env` secrets out of the build context and image.
-- Keep the Kubernetes deployment at one replica unless scheduled-work coordination is introduced;
-  never commit live Kubernetes Secrets or credentials.
+- Keep Docker Desktop Kubernetes and ECS at one application instance unless scheduled-work
+  coordination is introduced; never commit Kubernetes Secrets, AWS credentials, or application
+  credentials.
 
 ## Implementation sequence
 

@@ -1,0 +1,593 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: AWS foundation for the news scheduler on ECS Fargate and RDS PostgreSQL.
+
+Parameters:
+  GitHubRepository:
+    Type: String
+    Default: omkarchorghe16/news-scheduler-svc
+    Description: GitHub owner/repository allowed to publish and deploy from main.
+  CertificateArn:
+    Type: String
+    Description: ACM certificate ARN in this region for the public HTTPS endpoint.
+  CreateMigrationHost:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Temporarily create an SSM-only EC2 host for restoring the local PostgreSQL dump.
+  DatabaseInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+    Description: RDS PostgreSQL instance class. Adjust for the expected workload.
+  DatabaseMultiAZ:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Enable Multi-AZ RDS standby for higher availability and additional cost.
+  ScheduleCronExpression:
+    Type: String
+    Default: "0 0 9 * * MON-FRI"
+    Description: Spring cron expression for the scheduled digest.
+  ScheduleTimeZone:
+    Type: String
+    Default: America/Chicago
+    Description: IANA time zone used by the scheduled digest.
+
+Conditions:
+  CreateMigrationHostEnabled: !Equals [!Ref CreateMigrationHost, "true"]
+  DatabaseMultiAZEnabled: !Equals [!Ref DatabaseMultiAZ, "true"]
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.20.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: news-scheduler-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: news-scheduler-igw
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref Vpc
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.0.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: news-scheduler-public-a
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.1.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: news-scheduler-public-b
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.10.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: news-scheduler-private-a
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.11.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: news-scheduler-private-b
+
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetA
+
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetB
+
+  ApplicationLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow public HTTP redirect and HTTPS access to the application ALB.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  ApplicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow application traffic only from the load balancer.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !GetAtt ApplicationLoadBalancerSecurityGroup.GroupId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  MigrationHostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: CreateMigrationHostEnabled
+    Properties:
+      GroupDescription: SSM-only migration host; no inbound network access.
+      VpcId: !Ref Vpc
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: PostgreSQL accepts connections only from the application and optional SSM migration host.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !GetAtt ApplicationSecurityGroup.GroupId
+        - !If
+          - CreateMigrationHostEnabled
+          - IpProtocol: tcp
+            FromPort: 5432
+            ToPort: 5432
+            SourceSecurityGroupId: !GetAtt MigrationHostSecurityGroup.GroupId
+          - !Ref AWS::NoValue
+
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnets for news scheduler PostgreSQL.
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBName: news_scheduler
+      DBInstanceClass: !Ref DatabaseInstanceClass
+      Engine: postgres
+      ManageMasterUserPassword: true
+      MasterUsername: newsadmin
+      AllocatedStorage: "20"
+      MaxAllocatedStorage: 100
+      StorageType: gp3
+      StorageEncrypted: true
+      BackupRetentionPeriod: 7
+      CopyTagsToSnapshot: true
+      DeletionProtection: true
+      MultiAZ: !If [DatabaseMultiAZEnabled, true, false]
+      PubliclyAccessible: false
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      VPCSecurityGroups:
+        - !GetAtt DatabaseSecurityGroup.GroupId
+
+  ApplicationSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Provider and notification credentials for the news scheduler.
+      SecretString: '{"FMP_API_KEY":"","FINNHUB_API_KEY":"","NEWSAPI_KEY":"","ALPHA_VANTAGE_API_KEY":"","SLACK_WEBHOOK_URL":"","SLACK_PORTFOLIO_WEBHOOK_URL":"","TELEGRAM_BOT_TOKEN":"","TELEGRAM_CHAT_ID":"","TWILIO_ACCOUNT_SID":"","TWILIO_AUTH_TOKEN":"","TWILIO_WHATSAPP_FROM":"","TWILIO_WHATSAPP_TO":"","WHATSAPP_ENABLED":"false"}'
+      Tags:
+        - Key: Name
+          Value: news-scheduler-application-secrets
+
+  ApplicationDatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Runtime PostgreSQL login for the news scheduler application.
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"news_scheduler_app"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+
+  EcrRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: news-scheduler-svc
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep the most recent 20 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 20
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+
+  ApplicationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/news-scheduler-svc
+      RetentionInDays: 30
+
+  EcsTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ReadApplicationAndDatabaseSecrets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref ApplicationSecrets
+                  - !Ref ApplicationDatabaseSecret
+
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: news-scheduler
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn: EcrRepository
+    Properties:
+      Family: news-scheduler-svc
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: app
+          Image: !Sub "${EcrRepository.RepositoryUri}:bootstrap"
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          Environment:
+            - Name: SPRING_DATASOURCE_URL
+              Value: !Sub "jdbc:postgresql://${Database.Endpoint.Address}:${Database.Endpoint.Port}/news_scheduler?sslmode=require"
+            - Name: APP_SCHEDULE_CRON_EXPRESSION
+              Value: !Ref ScheduleCronExpression
+            - Name: APP_SCHEDULE_TIMEZONE
+              Value: !Ref ScheduleTimeZone
+            - Name: FMP_BASE_URL
+              Value: https://financialmodelingprep.com/stable
+            - Name: FMP_DAILY_REQUEST_LIMIT
+              Value: "250"
+            - Name: FMP_US_EXCHANGES_ONLY
+              Value: "true"
+            - Name: FMP_PROFILE_CACHE_HOURS
+              Value: "24"
+            - Name: FINNHUB_BASE_URL
+              Value: https://finnhub.io/api/v1
+            - Name: YAHOO_FINANCE_BASE_URL
+              Value: https://query1.finance.yahoo.com
+            - Name: ALPHA_VANTAGE_BASE_URL
+              Value: https://www.alphavantage.co/query
+            - Name: APP_APIS_TIMEOUT_SECONDS
+              Value: "5"
+            - Name: APP_APIS_MAX_RETRIES
+              Value: "3"
+          Secrets:
+            - Name: SPRING_DATASOURCE_USERNAME
+              ValueFrom: !Join ["", [!Ref ApplicationDatabaseSecret, ":username::"]]
+            - Name: SPRING_DATASOURCE_PASSWORD
+              ValueFrom: !Join ["", [!Ref ApplicationDatabaseSecret, ":password::"]]
+            - Name: FMP_API_KEY
+              ValueFrom: !Join ["", [!Ref ApplicationSecrets, ":FMP_API_KEY::"]]
+            - Name: FINNHUB_API_KEY
+              ValueFrom: !Join ["", [!Ref ApplicationSecrets, ":FINNHUB_API_KEY::"]]
+            - Name: NEWSAPI_KEY
+              ValueFrom: !Join ["", [!Ref ApplicationSecrets, ":NEWSAPI_KEY::"]]
+            - Name: ALPHA_VANTAGE_API_KEY
+              ValueFrom: !Join ["", [!Ref ApplicationSecrets, ":ALPHA_VANTAGE_API_KEY::"]]
+            - Name: SLACK_WEBHOOK_URL
+              ValueFrom: !Join ["", [!Ref ApplicationSecrets, ":SLACK_WEBHOOK_URL::"]]
+            - Name: SLACK_PORTFOLIO_WEBHOOK_URL
+              ValueFrom: !Join ["", [!Ref ApplicationSecrets, ":SLACK_PORTFOLIO_WEBHOOK_URL::"]]
+            - Name: TELEGRAM_BOT_TOKEN
+              ValueFrom: !Join ["", [!Ref ApplicationSecrets, ":TELEGRAM_BOT_TOKEN::"]]
+            - Name: TELEGRAM_CHAT_ID
+              ValueFrom: !Join ["", [!Ref ApplicationSecrets, ":TELEGRAM_CHAT_ID::"]]
+            - Name: TWILIO_ACCOUNT_SID
+              ValueFrom: !Join ["", [!Ref ApplicationSecrets, ":TWILIO_ACCOUNT_SID::"]]
+            - Name: TWILIO_AUTH_TOKEN
+              ValueFrom: !Join ["", [!Ref ApplicationSecrets, ":TWILIO_AUTH_TOKEN::"]]
+            - Name: TWILIO_WHATSAPP_FROM
+              ValueFrom: !Join ["", [!Ref ApplicationSecrets, ":TWILIO_WHATSAPP_FROM::"]]
+            - Name: TWILIO_WHATSAPP_TO
+              ValueFrom: !Join ["", [!Ref ApplicationSecrets, ":TWILIO_WHATSAPP_TO::"]]
+            - Name: WHATSAPP_ENABLED
+              ValueFrom: !Join ["", [!Ref ApplicationSecrets, ":WHATSAPP_ENABLED::"]]
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ApplicationLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: app
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: news-scheduler-alb
+      Scheme: internet-facing
+      Type: application
+      Subnets:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+      SecurityGroups:
+        - !GetAtt ApplicationLoadBalancerSecurityGroup.GroupId
+
+  ApplicationTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: news-scheduler-app
+      VpcId: !Ref Vpc
+      TargetType: ip
+      Protocol: HTTP
+      Port: 8080
+      HealthCheckEnabled: true
+      HealthCheckPath: /actuator/health/readiness
+      HealthCheckProtocol: HTTP
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      HealthCheckIntervalSeconds: 30
+      Matcher:
+        HttpCode: "200-399"
+
+  HttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ApplicationTargetGroup
+
+  HttpRedirectListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: "443"
+            StatusCode: HTTP_301
+
+  EcsService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - HttpsListener
+      - HttpRedirectListener
+    Properties:
+      ServiceName: news-scheduler-svc
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      HealthCheckGracePeriodSeconds: 120
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 0
+        MaximumPercent: 100
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref PublicSubnetA
+            - !Ref PublicSubnetB
+          SecurityGroups:
+            - !GetAtt ApplicationSecurityGroup.GroupId
+      LoadBalancers:
+        - ContainerName: app
+          ContainerPort: 8080
+          TargetGroupArn: !Ref ApplicationTargetGroup
+
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: news-scheduler-github-actions
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !GetAtt GitHubOidcProvider.Arn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub:
+                  - !Sub "repo:${GitHubRepository}:ref:refs/heads/main"
+                  - !Sub "repo:${GitHubRepository}:environment:staging"
+      Policies:
+        - PolicyName: PublishImageAndDeployEcsService
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:CompleteLayerUpload
+                  - ecr:DescribeImages
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource: !GetAtt EcrRepository.Arn
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeTaskDefinition
+                  - ecs:RegisterTaskDefinition
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/news-scheduler/news-scheduler-svc"
+                  - !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/news-scheduler"
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt EcsTaskExecutionRole.Arn
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: ecs-tasks.amazonaws.com
+
+  MigrationHostRole:
+    Type: AWS::IAM::Role
+    Condition: CreateMigrationHostEnabled
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  MigrationHostInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Condition: CreateMigrationHostEnabled
+    Properties:
+      Roles:
+        - !Ref MigrationHostRole
+
+  MigrationHost:
+    Type: AWS::EC2::Instance
+    Condition: CreateMigrationHostEnabled
+    Properties:
+      ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64}}"
+      InstanceType: t4g.nano
+      IamInstanceProfile: !Ref MigrationHostInstanceProfile
+      SubnetId: !Ref PublicSubnetA
+      SecurityGroupIds:
+        - !GetAtt MigrationHostSecurityGroup.GroupId
+      MetadataOptions:
+        HttpTokens: required
+      Tags:
+        - Key: Name
+          Value: news-scheduler-temporary-migration-host
+
+Outputs:
+  GitHubActionsRoleArn:
+    Description: Set as the AWS_ROLE_ARN repository variable in GitHub.
+    Value: !GetAtt GitHubActionsRole.Arn
+  EcrRepositoryUri:
+    Value: !GetAtt EcrRepository.RepositoryUri
+  EcsClusterName:
+    Value: !Ref EcsCluster
+  EcsServiceName:
+    Value: news-scheduler-svc
+  LoadBalancerDnsName:
+    Description: Point a DNS CNAME/alias and PUBLIC_BASE_URL at this HTTPS load balancer.
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+  DatabaseEndpoint:
+    Description: Private RDS endpoint; reachable only from the VPC.
+    Value: !GetAtt Database.Endpoint.Address
+  DatabaseSecretArn:
+    Description: RDS-generated administrative credential; use only for setup and migration.
+    Value: !GetAtt Database.MasterUserSecret.SecretArn
+  ApplicationDatabaseSecretArn:
+    Description: Generated runtime database login; create this role in PostgreSQL before first deploy.
+    Value: !Ref ApplicationDatabaseSecret
+  ApplicationSecretArn:
+    Description: Enter provider and notification credentials in this Secrets Manager secret.
+    Value: !Ref ApplicationSecrets
+  MigrationHostInstanceId:
+    Condition: CreateMigrationHostEnabled
+    Description: SSM target for the temporary PostgreSQL restore tunnel.
+    Value: !Ref MigrationHost

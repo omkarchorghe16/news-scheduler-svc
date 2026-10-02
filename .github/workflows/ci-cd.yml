@@ -11,7 +11,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: ci-cd-${{ github.ref }}
@@ -19,7 +18,8 @@ concurrency:
 
 env:
   JAVA_VERSION: '21'
-  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-2' }}
+  ECR_REPOSITORY: news-scheduler-svc
 
 jobs:
   build:
@@ -130,6 +130,9 @@ jobs:
     name: Package container
     runs-on: ubuntu-latest
     needs: [tests]
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       image: ${{ steps.image.outputs.image }}
     steps:
@@ -142,85 +145,116 @@ jobs:
           name: application-jar
           path: target
 
-      - name: Set image name
-        id: image
-        run: echo "image=${IMAGE_NAME,,}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-
-      - name: Log in to GitHub Container Registry
+      - name: Configure AWS credentials
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@v3
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: github-actions-package
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and publish multi-platform image
+      - name: Set image name
+        id: image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          if [[ -n "${ECR_REGISTRY}" ]]; then
+            echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          else
+            echo "image=${ECR_REPOSITORY}:${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and publish image
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: ${{ steps.image.outputs.image }}
 
   deploy:
-    name: Deploy to Docker Desktop Kubernetes
-    runs-on: [self-hosted, macOS, ARM64]
+    name: Deploy to Amazon ECS
+    runs-on: ubuntu-latest
     needs: package
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      id-token: write
     environment:
       name: staging
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Sync secrets and deploy image
-        env:
-          APPLICATION_SECRETS_FILE: ${{ vars.APPLICATION_SECRETS_FILE }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: github-actions-deploy
+
+      - name: Read current ECS task definition
         run: |
-          set -euo pipefail
-          if [[ -z "${APPLICATION_SECRETS_FILE}" || ! -r "${APPLICATION_SECRETS_FILE}" ]]; then
-            echo "Set staging variable APPLICATION_SECRETS_FILE to a readable local secrets file on the Mac runner." >&2
-            exit 1
-          fi
-          APP_SECRETS_FILE="${APPLICATION_SECRETS_FILE}" bash scripts/deploy-local-k8s.sh "${GITHUB_SHA}"
+          aws ecs describe-task-definition \
+            --task-definition news-scheduler-svc \
+            --query taskDefinition \
+            --output json > "${RUNNER_TEMP}/task-definition.json"
+
+      - name: Render task definition with this commit image
+        id: task-definition
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ runner.temp }}/task-definition.json
+          container-name: app
+          image: ${{ needs.package.outputs.image }}
+
+      - name: Deploy task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-definition.outputs.task-definition }}
+          service: news-scheduler-svc
+          cluster: news-scheduler
+          desired-count: 1
+          wait-for-service-stability: true
 
   smoke-tests:
-    name: Verify deployed Kubernetes service
-    runs-on: [self-hosted, macOS, ARM64]
+    name: Verify deployed HTTPS service
+    runs-on: ubuntu-latest
     needs: [package, deploy]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
     steps:
       - name: Check deployed health and metrics
+        env:
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
         run: |
           set -euo pipefail
-          if [[ "$(kubectl config current-context)" != "docker-desktop" ]]; then
-            echo "Refusing smoke test: current kubectl context is not docker-desktop." >&2
+          if [[ "${PUBLIC_BASE_URL}" != https://* ]]; then
+            echo "Set the repository variable PUBLIC_BASE_URL to the deployed HTTPS URL." >&2
             exit 1
           fi
-          forward_log="${RUNNER_TEMP}/news-scheduler-port-forward-${GITHUB_RUN_ID}.log"
-          kubectl port-forward --namespace dev service/news-scheduler-svc 18080:80 > "$forward_log" 2>&1 &
-          port_forward_pid=$!
-          trap 'kill "$port_forward_pid" 2>/dev/null || true' EXIT
+          base_url="${PUBLIC_BASE_URL%/}"
           for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:18080/actuator/health/readiness > /dev/null; then
+            if curl --fail --silent "${base_url}/actuator/health/readiness" > /dev/null; then
               break
             fi
             if [ "$attempt" -eq 30 ]; then
-              cat "$forward_log"
               exit 1
             fi
             sleep 2
           done
-          curl --fail --silent http://127.0.0.1:18080/actuator/health \
+          curl --fail --silent "${base_url}/actuator/health" \
             | grep -q '"status":"UP"'
-          curl --fail --silent http://127.0.0.1:18080/actuator/metrics \
+          curl --fail --silent "${base_url}/actuator/metrics" \
             | grep -q '"names"'
-          curl --fail --silent http://127.0.0.1:18080/actuator/prometheus \
+          curl --fail --silent "${base_url}/actuator/prometheus" \
             | grep -q 'jvm_'

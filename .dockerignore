@@ -4,6 +4,7 @@ target/*
 !target/
 !target/*.jar
 data
+*.dump
 .env
 .env.*
 application-secrets.yml

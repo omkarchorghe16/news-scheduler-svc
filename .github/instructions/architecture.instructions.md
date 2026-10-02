@@ -23,6 +23,12 @@ applyTo: "**/*.java"
 - PostgreSQL is the application datasource. H2 is configured for tests only; do not introduce a
   production H2 mirror or treat test H2 data as authoritative without an explicit architecture
   decision.
+- AWS deployment infrastructure belongs in `infra/aws/cloudformation.yml`: ECR publishes the image,
+  ECS Fargate runs the service, and private RDS PostgreSQL remains authoritative. Keep ECS at one
+  task until scheduled-work coordination exists, use GitHub OIDC rather than long-lived AWS keys,
+  and keep application/database credentials in Secrets Manager.
+- Docker Desktop Kubernetes under `k8s/` is a local-only option; it is not the AWS deployment
+  target. Keep local image and secret workflows separate from AWS deployment credentials.
 - Put transaction boundaries on service workflows, not controllers or repositories, unless an
   existing repository convention requires otherwise.
 - For every feature or behavior change, review all files in `.github/skills/` and update every skill
