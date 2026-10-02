@@ -375,7 +375,8 @@ aws iam update-assume-role-policy \
 ```
 
 If `GitHubActionsRole` is managed separately from this CloudFormation stack, grant it the ECR
-authentication and repository-scoped image-publish actions used by CI:
+authentication and repository-scoped image-publish actions used by CI, including read access for
+BuildKit's manifest checks:
 
 ```bash
 aws iam put-role-policy \
