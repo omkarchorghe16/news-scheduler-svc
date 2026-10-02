@@ -31,8 +31,10 @@ application-wide conventions, affects deployment topology, or introduces a new s
   private encrypted RDS PostgreSQL, ECR, Secrets Manager, CloudWatch Logs, and a repository-scoped
   `GitHubActionsRole` OIDC role. Its trust policy admits this repository's immutable GitHub OIDC
   owner/repository IDs on `main` for image publishing and the `staging` environment for deployment;
-  `infra/aws/github-oidc-trust-policy.json` is the matching policy for an existing role. The
-  template can reference an existing account-level
+  `infra/aws/github-oidc-trust-policy.json` is the matching policy for an existing role, and
+  `infra/aws/github-actions-ecr-policy.json` scopes image-publish permissions to this repository's
+  ECR ARN while allowing the required account-level ECR authentication action. The template can
+  reference an existing account-level
   GitHub OIDC provider or create one. The Fargate task uses public subnets for outbound provider calls, but its security
   group permits inbound application traffic only from the ALB. RDS remains private.
 - The CI workflow builds and tests on GitHub-hosted runners, pushes a uniquely tagged image to ECR,

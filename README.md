@@ -371,12 +371,23 @@ aws iam update-assume-role-policy \
   --policy-document file://infra/aws/github-oidc-trust-policy.json
 ```
 
+If `GitHubActionsRole` is managed separately from this CloudFormation stack, grant it the ECR
+authentication and repository-scoped image-publish actions used by CI:
+
+```bash
+aws iam put-role-policy \
+  --role-name GitHubActionsRole \
+  --policy-name PublishNewsSchedulerImage \
+  --policy-document file://infra/aws/github-actions-ecr-policy.json
+```
+
 Confirm the provider ARN and its `sts.amazonaws.com` client ID match the trust policy. Set GitHub's
 repository variable `AWS_ROLE_ARN` to
 `arn:aws:iam::221934031392:role/GitHubActionsRole` (or the `GitHubActionsRoleArn` stack output if
-CloudFormation manages the role). If creating the stack around an already existing role, CloudFormation
-cannot adopt that role automatically; use the trust-policy command above, or arrange to import the
-role into the stack before deploying the template.
+CloudFormation manages the role). The ECR repository must also exist before CI can push an image.
+If creating the stack around an already existing role, CloudFormation cannot adopt that role
+automatically; apply the trust and permission policies above, or arrange to import the role into
+the stack before deploying the template.
 
 The temporary migration host is an SSM-managed EC2 instance with no inbound ports. It allows the
 Compose PostgreSQL data to be restored into private RDS without making the database internet
