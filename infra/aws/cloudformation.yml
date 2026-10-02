@@ -6,6 +6,10 @@ Parameters:
     Type: String
     Default: omkarchorghe16/news-scheduler-svc
     Description: GitHub owner/repository allowed to publish and deploy from main.
+  ExistingGitHubOidcProviderArn:
+    Type: String
+    Default: ""
+    Description: Existing account-level GitHub OIDC provider ARN; leave blank to create one.
   CertificateArn:
     Type: String
     Description: ACM certificate ARN in this region for the public HTTPS endpoint.
@@ -35,6 +39,7 @@ Parameters:
 Conditions:
   CreateMigrationHostEnabled: !Equals [!Ref CreateMigrationHost, "true"]
   DatabaseMultiAZEnabled: !Equals [!Ref DatabaseMultiAZ, "true"]
+  CreateGitHubOidcProvider: !Equals [!Ref ExistingGitHubOidcProviderArn, ""]
 
 Resources:
   Vpc:
@@ -464,6 +469,7 @@ Resources:
 
   GitHubOidcProvider:
     Type: AWS::IAM::OIDCProvider
+    Condition: CreateGitHubOidcProvider
     Properties:
       Url: https://token.actions.githubusercontent.com
       ClientIdList:
@@ -472,13 +478,16 @@ Resources:
   GitHubActionsRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: news-scheduler-github-actions
+      RoleName: GitHubActionsRole
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !GetAtt GitHubOidcProvider.Arn
+              Federated: !If
+                - CreateGitHubOidcProvider
+                - !GetAtt GitHubOidcProvider.Arn
+                - !Ref ExistingGitHubOidcProviderArn
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
@@ -566,6 +575,12 @@ Outputs:
   GitHubActionsRoleArn:
     Description: Set as the AWS_ROLE_ARN repository variable in GitHub.
     Value: !GetAtt GitHubActionsRole.Arn
+  GitHubOidcProviderArn:
+    Description: Account-level provider ARN used by the GitHub Actions role.
+    Value: !If
+      - CreateGitHubOidcProvider
+      - !GetAtt GitHubOidcProvider.Arn
+      - !Ref ExistingGitHubOidcProviderArn
   EcrRepositoryUri:
     Value: !GetAtt EcrRepository.RepositoryUri
   EcsClusterName:

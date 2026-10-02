@@ -324,8 +324,9 @@ Before provisioning:
 1. Request and validate an ACM certificate in `us-east-2` for the public API hostname. The DNS name
    must resolve to the ALB created by the stack.
 2. Ensure the AWS account does not already have a GitHub Actions OIDC provider for
-   `token.actions.githubusercontent.com`. If it does, reuse that provider rather than creating a
-   duplicate; the template must be adapted to reference the existing provider.
+   `token.actions.githubusercontent.com`. If it exists, pass its ARN through
+   `ExistingGitHubOidcProviderArn`; otherwise CloudFormation creates it. The provider must list
+   `sts.amazonaws.com` as a client ID.
 3. Deploy the stack, substituting your ACM certificate ARN:
 
    ```bash
@@ -341,6 +342,32 @@ Before provisioning:
        ScheduleCronExpression="0 0 9 * * MON-FRI" \
        ScheduleTimeZone=America/Chicago
    ```
+
+If the account already has the GitHub OIDC provider, add this parameter to the deployment command,
+using the existing provider ARN:
+
+```text
+ExistingGitHubOidcProviderArn=arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com
+```
+
+The CI workflow assumes the role named `GitHubActionsRole`. For an existing role with that name,
+update its trust policy to match
+[`infra/aws/github-oidc-trust-policy.json`](infra/aws/github-oidc-trust-policy.json). That policy
+allows the package job's `main` branch token and the deploy job's `staging` environment token, and
+only the GitHub OIDC provider in account `221934031392`. Apply it to the existing role with:
+
+```bash
+aws iam update-assume-role-policy \
+  --role-name GitHubActionsRole \
+  --policy-document file://infra/aws/github-oidc-trust-policy.json
+```
+
+Confirm the provider ARN and its `sts.amazonaws.com` client ID match the trust policy. Set GitHub's
+repository variable `AWS_ROLE_ARN` to
+`arn:aws:iam::221934031392:role/GitHubActionsRole` (or the `GitHubActionsRoleArn` stack output if
+CloudFormation manages the role). If creating the stack around an already existing role, CloudFormation
+cannot adopt that role automatically; use the trust-policy command above, or arrange to import the
+role into the stack before deploying the template.
 
 The temporary migration host is an SSM-managed EC2 instance with no inbound ports. It allows the
 Compose PostgreSQL data to be restored into private RDS without making the database internet
@@ -429,7 +456,7 @@ In GitHub repository **Settings → Secrets and variables → Actions → Variab
 
 | Variable | Value |
 | --- | --- |
-| `AWS_ROLE_ARN` | The `GitHubActionsRoleArn` CloudFormation output |
+| `AWS_ROLE_ARN` | The `GitHubActionsRoleArn` CloudFormation output (`arn:aws:iam::221934031392:role/GitHubActionsRole` for this account) |
 | `AWS_REGION` | `us-east-2` |
 | `PUBLIC_BASE_URL` | The HTTPS URL for the DNS name covered by the ACM certificate |
 
