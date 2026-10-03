@@ -396,6 +396,24 @@ permissions. Confirm the provider ARN and its `sts.amazonaws.com` client ID matc
 Set GitHub's repository variable `AWS_ROLE_ARN` to
 `arn:aws:iam::221934031392:role/GitHubActionsRole` (or the `GitHubActionsRoleArn` stack output if
 CloudFormation manages the role). The ECR repository must also exist before CI can push an image.
+Set `AWS_REGION` to `us-east-2` and `PUBLIC_BASE_URL` to the deployed HTTPS API origin. The workflow
+deploys on pushes to `main`; choosing `main` for `workflow_dispatch` also publishes and deploys,
+while manual runs from other branches only build and test.
+
+If deployment fails with `AccessDenied` for `ecs:DescribeTaskDefinition`, the active role has not
+received the ECS policy. That action requires `Resource: "*"`. For a separately managed role, run the
+`put-role-policy` command above, then confirm it is attached:
+
+```bash
+aws iam get-role-policy \
+  --role-name GitHubActionsRole \
+  --policy-name DeployNewsSchedulerEcsService
+```
+
+For a stack-managed role, update the CloudFormation stack and confirm its `GitHubActionsRole` policy
+resource completed successfully. Verify `AWS_ROLE_ARN` points to
+`arn:aws:iam::221934031392:role/GitHubActionsRole`, then rerun the workflow; do not attach a second,
+manually managed policy to a stack-owned role.
 If creating the stack around an already existing role, CloudFormation cannot adopt that role
 automatically; apply the trust and permission policies above, or arrange to import the role into
 the stack before deploying the template.

@@ -14,6 +14,7 @@
         "ecr:BatchGetImage",
         "ecr:BatchCheckLayerAvailability",
         "ecr:CompleteLayerUpload",
+        "ecr:DescribeImages",
         "ecr:GetDownloadUrlForLayer",
         "ecr:InitiateLayerUpload",
         "ecr:PutImage",

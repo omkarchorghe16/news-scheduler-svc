@@ -43,10 +43,10 @@ application-wide conventions, affects deployment topology, or introduces a new s
   GitHub OIDC provider or create one. The Fargate task uses public subnets for outbound provider calls, but its security
   group permits inbound application traffic only from the ALB. RDS remains private.
 - The CI workflow builds and tests on GitHub-hosted runners, pushes a uniquely tagged image to ECR,
-  and deploys `main` to ECS using short-lived OIDC credentials. Post-deploy smoke tests use the
-  configured public HTTPS URL. The service remains at one task because scheduled jobs are
-  instance-local; ECS deployments stop the old task before starting its replacement to avoid
-  duplicate digests.
+  and deploys `main` to ECS using short-lived OIDC credentials on pushes and manual dispatches of
+  `main`. Post-deploy smoke tests use the configured public HTTPS URL. The service remains at one
+  task because scheduled jobs are instance-local; ECS deployments stop the old task before starting
+  its replacement to avoid duplicate digests.
 - Runtime provider/notification values and the generated application database login are stored in
   Secrets Manager. RDS's generated master credential is reserved for setup/migration. An optional
   temporary SSM-only EC2 host provides a private tunnel for importing the local Compose database;
