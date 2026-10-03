@@ -551,7 +551,9 @@ Resources:
                   - !GetAtt EcrRepository.Arn
                   - !Ref ExistingEcrRepositoryArn
               - Effect: Allow
-                Action: ecs:DescribeTaskDefinition
+                Action:
+                  - ecs:DescribeTaskDefinition
+                  - ecs:ListTaskDefinitions
                 Resource: "*"
               - Effect: Allow
                 Action: ecs:RegisterTaskDefinition

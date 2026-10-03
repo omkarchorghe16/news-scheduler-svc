@@ -2,6 +2,12 @@
   "Version": "2012-10-17",
   "Statement": [
     {
+      "Sid": "ListNewsSchedulerTaskDefinitions",
+      "Effect": "Allow",
+      "Action": "ecs:ListTaskDefinitions",
+      "Resource": "*"
+    },
+    {
       "Sid": "DescribeTaskDefinition",
       "Effect": "Allow",
       "Action": "ecs:DescribeTaskDefinition",

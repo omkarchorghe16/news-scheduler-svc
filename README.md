@@ -314,6 +314,9 @@ scheduled digest job; increasing replicas can send duplicate digests.
 with HTTPS, private RDS for PostgreSQL, Secrets Manager secrets, CloudWatch logs, and a GitHub OIDC
 deployment role in `us-east-2`. The Fargate service starts with zero tasks until the first successful
 CI deployment. It is intentionally kept at one task because each instance runs the scheduled digest.
+Deploy the CloudFormation stack successfully before running the GitHub deployment workflow: the
+stack creates the `news-scheduler-svc` task-definition family (initially using the `:bootstrap` image),
+the `news-scheduler` cluster, and the `news-scheduler-svc` service that the workflow updates.
 The RDS instance is private and encrypted. Fargate tasks run in public subnets with public IPs so they
 can call news/notification providers without a NAT gateway; their security group accepts application
 traffic only from the ALB. This avoids NAT gateway charges but is a cost-conscious starting topology,
@@ -414,6 +417,19 @@ For a stack-managed role, update the CloudFormation stack and confirm its `GitHu
 resource completed successfully. Verify `AWS_ROLE_ARN` points to
 `arn:aws:iam::221934031392:role/GitHubActionsRole`, then rerun the workflow; do not attach a second,
 manually managed policy to a stack-owned role.
+If the workflow reports that no active `news-scheduler-svc` task definition exists, confirm the stack
+reached `CREATE_COMPLETE` or `UPDATE_COMPLETE` and that the repository variable `AWS_REGION` is
+`us-east-2`. Check the registered family with:
+
+```bash
+aws ecs list-task-definitions \
+  --family-prefix news-scheduler-svc \
+  --status ACTIVE \
+  --region us-east-2
+```
+
+If the list is empty, create/update the infrastructure stack before rerunning CI. If it contains an
+active revision, check that GitHub's `AWS_ROLE_ARN` targets the same AWS account and role as the stack.
 If creating the stack around an already existing role, CloudFormation cannot adopt that role
 automatically; apply the trust and permission policies above, or arrange to import the role into
 the stack before deploying the template.

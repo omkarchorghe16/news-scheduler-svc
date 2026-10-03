@@ -201,12 +201,27 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: github-actions-deploy
 
-      - name: Read current ECS task definition
+      - name: Find current ECS task definition
         run: |
+          set -euo pipefail
+          task_definition_arn="$(aws ecs list-task-definitions \
+            --family-prefix news-scheduler-svc \
+            --status ACTIVE \
+            --sort DESC \
+            --max-items 1 \
+            --query 'taskDefinitionArns[0]' \
+            --output text \
+            --region "${AWS_REGION}")"
+          if [[ "${task_definition_arn}" == "None" || -z "${task_definition_arn}" ]]; then
+            echo "::error::No active ECS task definition exists for family news-scheduler-svc in ${AWS_REGION}."
+            echo "Deploy infra/aws/cloudformation.yml first; it registers the bootstrap task definition and creates the ECS cluster and service."
+            exit 1
+          fi
           aws ecs describe-task-definition \
-            --task-definition news-scheduler-svc \
+            --task-definition "${task_definition_arn}" \
             --query taskDefinition \
-            --output json > "${RUNNER_TEMP}/task-definition.json"
+            --output json \
+            --region "${AWS_REGION}" > "${RUNNER_TEMP}/task-definition.json"
 
       - name: Render task definition with this commit image
         id: task-definition

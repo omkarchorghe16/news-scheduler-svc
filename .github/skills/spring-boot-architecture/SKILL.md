@@ -34,7 +34,7 @@ application-wide conventions, affects deployment topology, or introduces a new s
   `infra/aws/github-oidc-trust-policy.json` is the matching policy for an existing role, and
   `infra/aws/github-actions-ecr-policy.json` scopes image-publish permissions to this repository's
   ECR ARN while allowing the required account-level ECR authentication action, and
-  `infra/aws/github-actions-ecs-policy.json` scopes task-definition registration, ECS service
+  `infra/aws/github-actions-ecs-policy.json` scopes task-definition listing, registration, ECS service
   deployment, and `iam:PassRole` for a separately managed role. The CloudFormation template can
   either create ECR or reference a pre-created repository using its ARN and URI
   parameters; pass the existing-repository parameters if CI bootstrapped ECR before the stack.
