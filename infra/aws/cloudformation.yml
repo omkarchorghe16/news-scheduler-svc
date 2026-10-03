@@ -551,17 +551,19 @@ Resources:
                   - !GetAtt EcrRepository.Arn
                   - !Ref ExistingEcrRepositoryArn
               - Effect: Allow
-                Action:
-                  - ecs:DescribeTaskDefinition
-                  - ecs:RegisterTaskDefinition
+                Action: ecs:DescribeTaskDefinition
                 Resource: "*"
+              - Effect: Allow
+                Action: ecs:RegisterTaskDefinition
+                Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/news-scheduler-svc:*"
               - Effect: Allow
                 Action:
                   - ecs:DescribeServices
                   - ecs:UpdateService
-                Resource:
-                  - !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/news-scheduler/news-scheduler-svc"
-                  - !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/news-scheduler"
+                Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/news-scheduler/news-scheduler-svc"
+                Condition:
+                  ArnEquals:
+                    ecs:cluster: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/news-scheduler"
               - Effect: Allow
                 Action: iam:PassRole
                 Resource: !GetAtt EcsTaskExecutionRole.Arn

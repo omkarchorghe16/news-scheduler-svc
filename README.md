@@ -374,19 +374,26 @@ aws iam update-assume-role-policy \
   --policy-document file://infra/aws/github-oidc-trust-policy.json
 ```
 
-If `GitHubActionsRole` is managed separately from this CloudFormation stack, grant it the ECR
-authentication and repository-scoped image-publish actions used by CI, including read access for
-BuildKit's manifest checks:
+If `GitHubActionsRole` is managed separately from this CloudFormation stack, attach both the ECR
+image-publish policy and the ECS deployment policy. The ECS policy grants task-definition
+registration, service deployment for this cluster, and `iam:PassRole` only for the stack's ECS task
+execution role:
 
 ```bash
 aws iam put-role-policy \
   --role-name GitHubActionsRole \
   --policy-name PublishNewsSchedulerImage \
   --policy-document file://infra/aws/github-actions-ecr-policy.json
+
+aws iam put-role-policy \
+  --role-name GitHubActionsRole \
+  --policy-name DeployNewsSchedulerEcsService \
+  --policy-document file://infra/aws/github-actions-ecs-policy.json
 ```
 
-Confirm the provider ARN and its `sts.amazonaws.com` client ID match the trust policy. Set GitHub's
-repository variable `AWS_ROLE_ARN` to
+For a CloudFormation-managed role, update the stack instead; its role policy grants the same
+permissions. Confirm the provider ARN and its `sts.amazonaws.com` client ID match the trust policy.
+Set GitHub's repository variable `AWS_ROLE_ARN` to
 `arn:aws:iam::221934031392:role/GitHubActionsRole` (or the `GitHubActionsRoleArn` stack output if
 CloudFormation manages the role). The ECR repository must also exist before CI can push an image.
 If creating the stack around an already existing role, CloudFormation cannot adopt that role
