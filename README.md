@@ -417,19 +417,23 @@ For a stack-managed role, update the CloudFormation stack and confirm its `GitHu
 resource completed successfully. Verify `AWS_ROLE_ARN` points to
 `arn:aws:iam::221934031392:role/GitHubActionsRole`, then rerun the workflow; do not attach a second,
 manually managed policy to a stack-owned role.
-If the workflow reports that no active `news-scheduler-svc` task definition exists, confirm the stack
-reached `CREATE_COMPLETE` or `UPDATE_COMPLETE` and that the repository variable `AWS_REGION` is
-`us-east-2`. Check the registered family with:
+The workflow reads the active task-definition ARN directly from the ECS service, so the
+`GitHubActionsRole` does not need `ecs:ListTaskDefinitions`. If the workflow reports the ECS service is
+missing, confirm the stack reached `CREATE_COMPLETE` or `UPDATE_COMPLETE` and that the repository
+variable `AWS_REGION` is `us-east-2`. Check the service and its task definition with:
 
 ```bash
-aws ecs list-task-definitions \
-  --family-prefix news-scheduler-svc \
-  --status ACTIVE \
+aws ecs describe-services \
+  --cluster news-scheduler \
+  --services news-scheduler-svc \
+  --query 'services[0].taskDefinition' \
+  --output text \
   --region us-east-2
 ```
 
-If the list is empty, create/update the infrastructure stack before rerunning CI. If it contains an
-active revision, check that GitHub's `AWS_ROLE_ARN` targets the same AWS account and role as the stack.
+If no task definition ARN is returned, create/update the infrastructure stack before rerunning CI.
+If an ARN is returned but `DescribeTaskDefinition` still fails, confirm the role has that action
+allowed on `Resource: "*"` and that `AWS_ROLE_ARN` targets the same AWS account as the stack.
 If creating the stack around an already existing role, CloudFormation cannot adopt that role
 automatically; apply the trust and permission policies above, or arrange to import the role into
 the stack before deploying the template.

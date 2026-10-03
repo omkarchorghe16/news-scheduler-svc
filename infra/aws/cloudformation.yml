@@ -553,7 +553,6 @@ Resources:
               - Effect: Allow
                 Action:
                   - ecs:DescribeTaskDefinition
-                  - ecs:ListTaskDefinitions
                 Resource: "*"
               - Effect: Allow
                 Action: ecs:RegisterTaskDefinition
