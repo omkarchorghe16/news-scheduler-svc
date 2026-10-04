@@ -413,14 +413,31 @@ aws iam get-role-policy \
   --policy-name DeployNewsSchedulerEcsService
 ```
 
+If deployment fails with `AccessDenied` for `ecs:DescribeClusters`, update the separately managed
+role with the current `infra/aws/github-actions-ecs-policy.json`; it now grants read access to this
+cluster only. For a CloudFormation-managed role, update the stack so the inline policy is refreshed.
+
 For a stack-managed role, update the CloudFormation stack and confirm its `GitHubActionsRole` policy
 resource completed successfully. Verify `AWS_ROLE_ARN` points to
 `arn:aws:iam::221934031392:role/GitHubActionsRole`, then rerun the workflow; do not attach a second,
 manually managed policy to a stack-owned role.
-The workflow reads the active task-definition ARN directly from the ECS service, so the
-`GitHubActionsRole` does not need `ecs:ListTaskDefinitions`. If the workflow reports the ECS service is
-missing, confirm the stack reached `CREATE_COMPLETE` or `UPDATE_COMPLETE` and that the repository
-variable `AWS_REGION` is `us-east-2`. Check the service and its task definition with:
+The workflow first verifies that the `news-scheduler` cluster is `ACTIVE`, then reads the active
+task-definition ARN directly from the ECS service; the `GitHubActionsRole` does not need
+`ecs:ListTaskDefinitions`. If it reports that the cluster is missing or inactive, confirm the stack
+reached `CREATE_COMPLETE` or `UPDATE_COMPLETE` in the same AWS account and region used by
+`AWS_ROLE_ARN` and `AWS_REGION`. `AWS_REGION` defaults to `us-east-2`. Do not rerun the full stack
+without checking its status first, because it provisions billable resources. To verify the cluster:
+
+```bash
+aws ecs describe-clusters \
+  --clusters news-scheduler \
+  --query 'clusters[0].status' \
+  --output text \
+  --region us-east-2
+```
+
+If the cluster is active but the workflow reports the service missing, check the service and its task
+definition with:
 
 ```bash
 aws ecs describe-services \

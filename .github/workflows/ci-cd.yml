@@ -204,6 +204,17 @@ jobs:
       - name: Read current ECS service task definition
         run: |
           set -euo pipefail
+          cluster_status="$(aws ecs describe-clusters \
+            --clusters news-scheduler \
+            --query 'clusters[0].status' \
+            --output text \
+            --region "${AWS_REGION}")"
+          if [[ "${cluster_status}" != "ACTIVE" ]]; then
+            echo "::error::ECS cluster news-scheduler was not found or is not ACTIVE in ${AWS_REGION}."
+            echo "Deploy infra/aws/cloudformation.yml successfully in the same AWS account and region before running this workflow. Check AWS_REGION and AWS_ROLE_ARN."
+            exit 1
+          fi
+
           task_definition_arn="$(aws ecs describe-services \
             --cluster news-scheduler \
             --services news-scheduler-svc \

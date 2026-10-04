@@ -14,6 +14,12 @@
       "Resource": "arn:aws:ecs:us-east-2:221934031392:task-definition/news-scheduler-svc:*"
     },
     {
+      "Sid": "DescribeNewsSchedulerCluster",
+      "Effect": "Allow",
+      "Action": "ecs:DescribeClusters",
+      "Resource": "arn:aws:ecs:us-east-2:221934031392:cluster/news-scheduler"
+    },
+    {
       "Sid": "DeployNewsSchedulerService",
       "Effect": "Allow",
       "Action": [

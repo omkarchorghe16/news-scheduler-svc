@@ -558,6 +558,9 @@ Resources:
                 Action: ecs:RegisterTaskDefinition
                 Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/news-scheduler-svc:*"
               - Effect: Allow
+                Action: ecs:DescribeClusters
+                Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/news-scheduler"
+              - Effect: Allow
                 Action:
                   - ecs:DescribeServices
                   - ecs:UpdateService
