@@ -121,23 +121,31 @@ make unrelated skill edits just to create churn.
 ### Keeping API keys and credentials out of Git
 
 `application.yml` reads secrets from environment variables (for example, `FINNHUB_API_KEY`);
-do not put real values in the committed file. For local development, export the values in your
-shell before starting the app:
+do not put real values in the committed file. For local development, copy `.env.example` to the
+ignored `.env`, set a development-only `POSTGRES_PASSWORD`, then start the local PostgreSQL service:
 
 ```bash
-export FINNHUB_API_KEY="your-finnhub-key"
-export NEWSAPI_KEY="your-newsapi-key"
-export ALPHA_VANTAGE_API_KEY="your-alpha-vantage-key"
-export FMP_API_KEY="your-fmp-key"
-export POSTGRES_URL="jdbc:postgresql://localhost:5432/news_scheduler"
+cp .env.example .env
+docker compose up -d postgres
+```
+
+To run Spring Boot from a terminal on your Mac, set the datasource environment variables for that
+shell and start Maven:
+
+```bash
+export POSTGRES_URL="jdbc:postgresql://localhost:5433/news_scheduler"
 export POSTGRES_USER="news_scheduler"
 export POSTGRES_PASSWORD="your-local-postgres-password"
 mvn spring-boot:run
 ```
 
-To keep them across terminal sessions, add these exports to a local shell profile that is not
-committed, or use your IDE's **Run Configuration → Environment variables**. Do not paste secrets
-into Postman collection/environment exports or commit terminal/IDE configuration files that contain them.
+The host-run app defaults to `jdbc:postgresql://localhost:5433/news_scheduler` with user
+`news_scheduler`; the password comes from `POSTGRES_PASSWORD`. For an IDE run configuration, set
+`POSTGRES_URL`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` from `.env` under **Environment variables**.
+Compose itself reads `.env` automatically, but Maven and IDE run configurations do not. Use the same
+local-only password in `.env` and the host app's environment. If you change `POSTGRES_HOST_PORT` in
+`.env`, set `POSTGRES_URL` to that same host port. Do not commit `.env` or IDE run configuration
+files containing credentials, or paste secrets into Postman exports.
 
 An optional local YAML override is also supported: copy
 `src/main/resources/application-local.yml.example` to the repository root as
@@ -640,13 +648,20 @@ mvn clean install
 
 ### 4. Run Locally
 
-**Run with the default local profile**
+**Run the application from Maven/IDE with PostgreSQL in Docker**
 ```bash
+docker compose up -d postgres
+export POSTGRES_URL="jdbc:postgresql://localhost:5433/news_scheduler"
+export POSTGRES_USER="news_scheduler"
+export POSTGRES_PASSWORD="your-local-postgres-password"
 mvn spring-boot:run
 ```
 
-The default Spring profile is `local`. PostgreSQL must be running and the `news_scheduler`
-database/user must exist; see [Database setup](#database-setup).
+The default Spring profile is `local`. Before starting Maven, set `POSTGRES_URL` to
+`jdbc:postgresql://localhost:5433/news_scheduler`, `POSTGRES_USER` to `news_scheduler`, and
+`POSTGRES_PASSWORD` to the local password configured in `.env`. For an IDE run, configure those
+three environment variables in its run configuration. `.env` is read by Docker Compose, not
+automatically by Maven or IDEs.
 
 **Optional local schedule override (every 5 minutes)**
 ```bash
@@ -937,11 +952,14 @@ CREATE USER news_scheduler WITH PASSWORD 'set-a-local-password';
 CREATE DATABASE news_scheduler OWNER news_scheduler;
 ```
 
-Set `POSTGRES_URL`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` in the shell/IDE before running. For
-example, use `jdbc:postgresql://localhost:5432/news_scheduler` if you created the database above.
-The application writes to the database in the effective `POSTGRES_URL` (including overrides in
-`application-secrets.yml`); inspect that exact database in pgAdmin or IntelliJ. Do not put credentials
-into committed configuration. Hibernate updates PostgreSQL tables on startup.
+For the Compose database, the host-run app defaults to
+`POSTGRES_URL=jdbc:postgresql://localhost:5433/news_scheduler` and `POSTGRES_USER=news_scheduler`;
+set `POSTGRES_PASSWORD` to the local password configured for the container. For a manually installed
+PostgreSQL server on port 5432, override `POSTGRES_URL` to
+`jdbc:postgresql://localhost:5432/news_scheduler`. The application writes to the database in the
+effective `POSTGRES_URL` (including overrides in `application-secrets.yml`); inspect that exact
+database in pgAdmin or IntelliJ. Do not put credentials into committed configuration. Hibernate
+updates PostgreSQL tables on startup.
 
 Hibernate creates or updates these PostgreSQL tables from the corresponding JPA entities:
 

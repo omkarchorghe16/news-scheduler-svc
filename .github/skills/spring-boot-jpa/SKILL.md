@@ -13,10 +13,12 @@ Use this skill when changing persisted data, repository queries, or transactiona
   H2 is configured for tests in `src/test/resources/application.yml`; there is no production H2
   mirror in the current architecture.
 - Local development uses the official PostgreSQL Docker image via `compose.yaml`, with persistent
-  data in the `postgres_data` named volume; app containers connect to `postgres:5432`, while Mac
-  database clients connect to `localhost:5433` by default. The ignored `.env` configures its
-  database name, user, password, and host port. Docker Desktop Kubernetes remains a local-only
-  workflow using PostgreSQL on the Mac host. AWS ECS connects to private RDS PostgreSQL using a
+  data in the `postgres_data` named volume; app containers connect to `postgres:5432`, while a
+  host-run Spring Boot app and Mac database clients connect to `localhost:5433` by default. The
+  ignored `.env` configures its database name, user, password, and host port; set the matching
+  datasource environment variables before launching Maven, or add them to the IDE run configuration. Docker
+  Desktop Kubernetes remains a local-only workflow using PostgreSQL on the Mac host. AWS ECS
+  connects to private RDS PostgreSQL using a
   generated application login from Secrets Manager; the RDS master secret is for setup/migration.
 - AWS RDS PostgreSQL is pinned to engine 18.3 and uses an explicit `postgres18` parameter group
   requiring TLS (`rds.force_ssl=1`). ECS JDBC connections must continue using `sslmode=require`.

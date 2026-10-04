@@ -21,9 +21,10 @@ application-wide conventions, affects deployment topology, or introduces a new s
   H2 mirror in the current architecture.
 - For local development, `compose.yaml` runs Spring Boot with the official PostgreSQL image from
   Docker Hub, persists database state in a named volume, and binds the host port to loopback. The app
-  uses Compose DNS (`postgres:5432`); Mac database clients use `localhost:5433` by default. The
-  ignored `.env` supplies datasource and provider/notification configuration as container environment
-  variables. Never commit this file or copy it into the image.
+  uses Compose DNS (`postgres:5432`); a Spring Boot app launched on the host and Mac database clients
+  use `localhost:5433` by default. The ignored `.env` supplies datasource and provider/notification
+  configuration to Compose; host-run Maven/IDE processes must explicitly receive its values. Never
+  commit this file or copy it into the image.
 - `k8s/` and `scripts/deploy-local-k8s.sh` remain an optional single-user Docker Desktop workflow
   using PostgreSQL on the Mac host. It keeps one replica because scheduling is instance-local and
   syncs the ignored local secrets file into a Kubernetes Secret.

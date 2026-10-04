@@ -4,5 +4,3 @@ values:
     value: ''
   - key: apiPath
     value: /api/digest
-  - key: springProfile
-    value: prod
