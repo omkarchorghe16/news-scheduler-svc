@@ -1,5 +1,5 @@
 $kind: http-request
-url: "{{baseUrl}}/actuator/health"
+url: "{{url}}/actuator/health"
 method: GET
 scripts:
   - type: afterResponse

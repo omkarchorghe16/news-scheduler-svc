@@ -1,5 +1,5 @@
 $kind: http-request
-url: "{{baseUrl}}/api/stocks?sectorId={{sectorId}}&ticker={{stockTicker}}"
+url: "{{url}}/api/stocks?sectorId={{sectorId}}&ticker={{stockTicker}}"
 method: GET
 queryParams:
   sectorId: "{{sectorId}}"

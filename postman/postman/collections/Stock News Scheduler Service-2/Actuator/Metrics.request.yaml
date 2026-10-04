@@ -1,4 +1,4 @@
 $kind: http-request
-url: "{{baseUrl}}/actuator/metrics"
+url: "{{url}}/actuator/metrics"
 method: GET
 order: 2000

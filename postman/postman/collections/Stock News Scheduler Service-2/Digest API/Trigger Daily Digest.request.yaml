@@ -1,5 +1,5 @@
 $kind: http-request
-url: "{{baseUrl}}{{apiPath}}/run"
+url: "{{url}}{{apiPath}}/run"
 method: POST
 headers:
   Content-Type: application/json

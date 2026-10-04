@@ -1,5 +1,5 @@
 $kind: http-request
-url: "{{baseUrl}}/api/sectors"
+url: "{{url}}/api/sectors"
 method: GET
 scripts:
   - type: afterResponse

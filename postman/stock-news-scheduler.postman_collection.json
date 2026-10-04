@@ -1,30 +1,9 @@
 {
   "info": {
     "name": "Stock News Scheduler Service",
-    "description": "Shared Postman collection for local, AWS dev, and AWS production. Select the activeProfile in the imported environment.",
+    "description": "Shared Postman collection for local, AWS dev, and AWS production. Select the matching Postman environment to change the url.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          "const profile = pm.environment.get(\"activeProfile\");",
-          "const baseUrls = {",
-          "  local: pm.environment.get(\"localBaseUrl\"),",
-          "  \"aws-dev\": pm.environment.get(\"awsDevBaseUrl\"),",
-          "  \"aws-prod\": pm.environment.get(\"awsProdBaseUrl\")",
-          "};",
-          "const baseUrl = baseUrls[profile];",
-          "if (!baseUrl) {",
-          "  throw new Error(\"Set activeProfile to local, aws-dev, or aws-prod, and configure that profile's base URL.\");",
-          "}",
-          "pm.environment.set(\"baseUrl\", baseUrl.replace(/\\/+$/, \"\"));"
-        ]
-      }
-    }
-  ],
   "variable": [
     {
       "key": "apiPath",
@@ -53,7 +32,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}{{apiPath}}/health"
+            "url": "{{url}}{{apiPath}}/health"
           },
           "response": []
         },
@@ -83,7 +62,7 @@
               "mode": "raw",
               "raw": ""
             },
-            "url": "{{baseUrl}}{{apiPath}}/run"
+            "url": "{{url}}{{apiPath}}/run"
           },
           "response": []
         },
@@ -113,7 +92,7 @@
               "mode": "raw",
               "raw": ""
             },
-            "url": "{{baseUrl}}{{apiPath}}/portfolio"
+            "url": "{{url}}{{apiPath}}/portfolio"
           },
           "response": []
         }
@@ -164,7 +143,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/sectors"
+            "url": "{{url}}/api/sectors"
           },
           "response": []
         },
@@ -185,7 +164,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/sectors"
+            "url": "{{url}}/api/sectors"
           },
           "response": []
         },
@@ -205,7 +184,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/sectors/{{sectorId}}"
+            "url": "{{url}}/api/sectors/{{sectorId}}"
           },
           "response": []
         },
@@ -248,7 +227,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/sectors/{{sectorId}}"
+            "url": "{{url}}/api/sectors/{{sectorId}}"
           },
           "response": []
         },
@@ -294,7 +273,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/stocks"
+            "url": "{{url}}/api/stocks"
           },
           "response": []
         },
@@ -328,7 +307,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/stock-symbols"
+            "url": "{{url}}/api/stock-symbols"
           },
           "response": []
         },
@@ -348,7 +327,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/stocks?sectorId={{sectorId}}&ticker={{stockTicker}}"
+            "url": "{{url}}/api/stocks?sectorId={{sectorId}}&ticker={{stockTicker}}"
           },
           "response": []
         },
@@ -368,7 +347,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/stocks/{{stockId}}"
+            "url": "{{url}}/api/stocks/{{stockId}}"
           },
           "response": []
         },
@@ -411,7 +390,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/stocks/{{stockId}}"
+            "url": "{{url}}/api/stocks/{{stockId}}"
           },
           "response": []
         },
@@ -431,7 +410,7 @@
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": "{{baseUrl}}/api/stocks/{{stockId}}"
+            "url": "{{url}}/api/stocks/{{stockId}}"
           },
           "response": []
         },
@@ -468,7 +447,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/stock-symbols"
+            "url": "{{url}}/api/stock-symbols"
           },
           "response": []
         },
@@ -488,7 +467,7 @@
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": "{{baseUrl}}/api/stocks/{{bulkStockId1}}"
+            "url": "{{url}}/api/stocks/{{bulkStockId1}}"
           },
           "response": []
         },
@@ -508,7 +487,7 @@
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": "{{baseUrl}}/api/stocks/{{bulkStockId2}}"
+            "url": "{{url}}/api/stocks/{{bulkStockId2}}"
           },
           "response": []
         },
@@ -528,7 +507,7 @@
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": "{{baseUrl}}/api/sectors/{{sectorId}}"
+            "url": "{{url}}/api/sectors/{{sectorId}}"
           },
           "response": []
         }
@@ -569,7 +548,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/stocks/finnhub/profiles"
+            "url": "{{url}}/api/stocks/finnhub/profiles"
           },
           "response": []
         },
@@ -605,7 +584,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/stocks/yahoo/profiles"
+            "url": "{{url}}/api/stocks/yahoo/profiles"
           },
           "response": []
         },
@@ -641,7 +620,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/stocks/alphavantage/overview"
+            "url": "{{url}}/api/stocks/alphavantage/overview"
           },
           "response": []
         },
@@ -677,7 +656,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/fmp/profiles"
+            "url": "{{url}}/api/fmp/profiles"
           },
           "response": []
         },
@@ -711,7 +690,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/stocks/finnhub/profiles"
+            "url": "{{url}}/api/stocks/finnhub/profiles"
           },
           "response": []
         }
@@ -737,7 +716,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/actuator/health"
+            "url": "{{url}}/actuator/health"
           },
           "response": []
         },
@@ -746,7 +725,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/actuator/metrics"
+            "url": "{{url}}/actuator/metrics"
           },
           "response": []
         },
@@ -755,7 +734,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/actuator/prometheus"
+            "url": "{{url}}/actuator/prometheus"
           },
           "response": []
         }

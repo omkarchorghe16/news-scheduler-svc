@@ -1,0 +1,8 @@
+name: Stock News Scheduler - AWS Production
+values:
+  - key: url
+    value: ''
+  - key: apiPath
+    value: /api/digest
+  - key: springProfile
+    value: prod

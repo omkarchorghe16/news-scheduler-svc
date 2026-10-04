@@ -1,4 +1,4 @@
 $kind: http-request
-url: "{{baseUrl}}/actuator/prometheus"
+url: "{{url}}/actuator/prometheus"
 method: GET
 order: 3000

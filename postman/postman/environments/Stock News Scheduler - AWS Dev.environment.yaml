@@ -1,0 +1,8 @@
+name: Stock News Scheduler - AWS Dev
+values:
+  - key: url
+    value: 'http://news-scheduler-alb-645095574.us-east-2.elb.amazonaws.com'
+  - key: apiPath
+    value: /api/digest
+  - key: springProfile
+    value: dev

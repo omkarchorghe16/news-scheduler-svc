@@ -1,6 +1,5 @@
 $kind: collection
 name: Stock News Scheduler Service
-description: Ready-to-use Postman collection for the Stock News Scheduler Service REST API.
+description: Shared Postman collection for local, AWS dev, and AWS production. Select the matching Postman environment to change the url.
 variables:
-  baseUrl: http://localhost:8080
   apiPath: /api/digest

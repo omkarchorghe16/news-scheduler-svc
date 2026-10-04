@@ -1,5 +1,5 @@
 $kind: http-request
-url: "{{baseUrl}}/api/sectors/{{sectorId}}"
+url: "{{url}}/api/sectors/{{sectorId}}"
 method: DELETE
 scripts:
   - type: afterResponse

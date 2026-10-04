@@ -1,5 +1,5 @@
 $kind: http-request
-url: "{{baseUrl}}/api/stock-symbols"
+url: "{{url}}/api/stock-symbols"
 method: POST
 headers:
   Content-Type: application/json
