@@ -719,13 +719,13 @@ PostgreSQL, and requests wait when the per-minute quota is reached. Each symbol 
 Create your own API key at [alphavantage.co](https://www.alphavantage.co/support/#api-key) and set
 `ALPHA_VANTAGE_API_KEY` in your environment or secret store.
 The Postman collection includes profile requests for all four providers and a validation test for an
-empty symbol list. Import `postman/stock-news-scheduler.postman_collection.json` once, then import
-the local, AWS Dev, and AWS Production environments from `postman/`. Select the environment you want
-to target; the requests use the shared `{{baseUrl}}` variable. The AWS Dev environment points to the
-current HTTP ALB URL from the CloudFormation `ApplicationUrl` output. Replace `baseUrl` in the AWS
-Production environment with the production `ApplicationUrl` before use. Configure Finnhub, Alpha
-Vantage, and FMP API keys in the running application to run Stock Profiles; the Yahoo request does
-not require a key.
+empty symbol list. Import one collection, `postman/stock-news-scheduler.postman_collection.json`,
+and one environment, `postman/stock-news-scheduler.postman_environment.json`. Set `activeProfile` to
+`local`, `aws-dev`, or `aws-prod`; the collection selects `localBaseUrl`, `awsDevBaseUrl`, or
+`awsProdBaseUrl` accordingly. AWS Dev is prefilled with the current HTTP ALB URL from the
+CloudFormation `ApplicationUrl` output. Set `awsProdBaseUrl` to the production `ApplicationUrl`
+before selecting `aws-prod`. Configure Finnhub, Alpha Vantage, and FMP API keys in the running
+application to run Stock Profiles; the Yahoo request does not require a key.
 
 The collection includes requests that create/update/delete database records, trigger digests and
 notifications, and call provider APIs. Do not run the full collection or folders against production

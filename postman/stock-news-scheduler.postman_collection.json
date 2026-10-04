@@ -1,15 +1,31 @@
 {
   "info": {
     "name": "Stock News Scheduler Service",
-    "description": "Ready-to-use Postman collection for the Stock News Scheduler Service REST API.",
+    "description": "Shared Postman collection for local, AWS dev, and AWS production. Select the activeProfile in the imported environment.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
-  "variable": [
+  "event": [
     {
-      "key": "baseUrl",
-      "value": "http://localhost:8080",
-      "type": "string"
-    },
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const profile = pm.environment.get(\"activeProfile\");",
+          "const baseUrls = {",
+          "  local: pm.environment.get(\"localBaseUrl\"),",
+          "  \"aws-dev\": pm.environment.get(\"awsDevBaseUrl\"),",
+          "  \"aws-prod\": pm.environment.get(\"awsProdBaseUrl\")",
+          "};",
+          "const baseUrl = baseUrls[profile];",
+          "if (!baseUrl) {",
+          "  throw new Error(\"Set activeProfile to local, aws-dev, or aws-prod, and configure that profile's base URL.\");",
+          "}",
+          "pm.environment.set(\"baseUrl\", baseUrl.replace(/\\/+$/, \"\"));"
+        ]
+      }
+    }
+  ],
+  "variable": [
     {
       "key": "apiPath",
       "value": "/api/digest",
