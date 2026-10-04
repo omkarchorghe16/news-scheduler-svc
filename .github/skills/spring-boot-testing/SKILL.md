@@ -27,6 +27,9 @@ provider/database workflow.
   do not assume AWS credentials or deploy.
 - Keep test fixtures synthetic. Do not use real tokens, API keys, personal data, or full live
   provider payloads.
+- The Postman collection is shared across local, AWS Dev, and AWS Production environments through
+  `{{baseUrl}}`. Its mutation, digest-delivery, and provider requests can have real side effects;
+  avoid running those requests against production unless explicitly intended.
 
 ## Implementation sequence
 

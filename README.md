@@ -324,8 +324,9 @@ traffic only from the ALB. This avoids NAT gateway charges but is a cost-conscio
 not a substitute for a reviewed production network design.
 
 The RDS instance runs PostgreSQL 18.3 in `news_scheduler`, uses a `db.t4g.micro` by default, starts
-with 20 GiB of encrypted gp3 storage that can autoscale to 100 GiB, retains seven days of automated
-backups, and has deletion protection plus snapshot retention on deletion/replacement. It is private
+with 20 GiB of encrypted gp3 storage that can autoscale to 100 GiB, retains one day of automated
+backups to fit the current Free plan limit, and has deletion protection plus snapshot retention on
+deletion/replacement. It is private
 and uses a custom `postgres18` parameter group requiring TLS (`rds.force_ssl=1`); the ECS JDBC URL
 also sets `sslmode=require`. Multi-AZ is disabled by default and can be enabled with
 `DatabaseMultiAZ=true`.
@@ -718,9 +719,17 @@ PostgreSQL, and requests wait when the per-minute quota is reached. Each symbol 
 Create your own API key at [alphavantage.co](https://www.alphavantage.co/support/#api-key) and set
 `ALPHA_VANTAGE_API_KEY` in your environment or secret store.
 The Postman collection includes profile requests for all four providers and a validation test for an
-empty symbol list. Import `postman/stock-news-scheduler.postman_collection.json`, select the local
-environment, configure Finnhub, Alpha Vantage, and FMP API keys in the running application to run
-those requests, then run the Stock Profiles folder. The Yahoo request does not require a key.
+empty symbol list. Import `postman/stock-news-scheduler.postman_collection.json` once, then import
+the local, AWS Dev, and AWS Production environments from `postman/`. Select the environment you want
+to target; the requests use the shared `{{baseUrl}}` variable. The AWS Dev environment points to the
+current HTTP ALB URL from the CloudFormation `ApplicationUrl` output. Replace `baseUrl` in the AWS
+Production environment with the production `ApplicationUrl` before use. Configure Finnhub, Alpha
+Vantage, and FMP API keys in the running application to run Stock Profiles; the Yahoo request does
+not require a key.
+
+The collection includes requests that create/update/delete database records, trigger digests and
+notifications, and call provider APIs. Do not run the full collection or folders against production
+unless you intend those side effects; use read-only health/metrics requests there by default.
 
 ### Adding Stock Symbols
 

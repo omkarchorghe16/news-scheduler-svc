@@ -247,6 +247,11 @@ Resources:
 
   DatabaseParameterGroup:
     Type: AWS::RDS::DBParameterGroup
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: enforce encrypted PostgreSQL client connections at the database boundary
+        must:
+          - Keep rds.force_ssl enabled so RDS rejects plaintext client sessions.
     Properties:
       Description: Require TLS for all news scheduler PostgreSQL client connections.
       Family: postgres18
@@ -280,7 +285,7 @@ Resources:
       MaxAllocatedStorage: 100
       StorageType: gp3
       StorageEncrypted: true
-      BackupRetentionPeriod: 7
+      BackupRetentionPeriod: 1
       AutoMinorVersionUpgrade: true
       CopyTagsToSnapshot: true
       DeletionProtection: true
