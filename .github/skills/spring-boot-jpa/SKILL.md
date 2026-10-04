@@ -18,6 +18,9 @@ Use this skill when changing persisted data, repository queries, or transactiona
   database name, user, password, and host port. Docker Desktop Kubernetes remains a local-only
   workflow using PostgreSQL on the Mac host. AWS ECS connects to private RDS PostgreSQL using a
   generated application login from Secrets Manager; the RDS master secret is for setup/migration.
+- AWS RDS PostgreSQL is pinned to engine 18.3 and uses an explicit `postgres18` parameter group
+  requiring TLS (`rds.force_ssl=1`). ECS JDBC connections must continue using `sslmode=require`.
+  The instance remains private, encrypted, protected from deletion, and backed up for seven days.
 - JPA entities live in `com.stocknews.model`; Spring Data repositories live in
   `com.stocknews.repository`; use-case transactions belong in service classes.
 - Preserve existing entity/table/column naming and typed models. Keep provider-specific records

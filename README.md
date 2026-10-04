@@ -311,7 +311,8 @@ scheduled digest job; increasing replicas can send duplicate digests.
 ### Deploy to AWS ECS and RDS
 
 `infra/aws/cloudformation.yml` provisions an ECR repository, an ECS Fargate service, a public ALB
-with HTTPS, private RDS for PostgreSQL, Secrets Manager secrets, CloudWatch logs, and a GitHub OIDC
+(HTTPS when an ACM certificate is supplied, otherwise HTTP-only), private RDS for PostgreSQL,
+Secrets Manager secrets, CloudWatch logs, and a GitHub OIDC
 deployment role in `us-east-2`. The Fargate service starts with zero tasks until the first successful
 CI deployment. It is intentionally kept at one task because each instance runs the scheduled digest.
 Deploy the CloudFormation stack successfully before running the GitHub deployment workflow: the
@@ -322,15 +323,29 @@ can call news/notification providers without a NAT gateway; their security group
 traffic only from the ALB. This avoids NAT gateway charges but is a cost-conscious starting topology,
 not a substitute for a reviewed production network design.
 
+The RDS instance runs PostgreSQL 18.3 in `news_scheduler`, uses a `db.t4g.micro` by default, starts
+with 20 GiB of encrypted gp3 storage that can autoscale to 100 GiB, retains seven days of automated
+backups, and has deletion protection plus snapshot retention on deletion/replacement. It is private
+and uses a custom `postgres18` parameter group requiring TLS (`rds.force_ssl=1`); the ECS JDBC URL
+also sets `sslmode=require`. Multi-AZ is disabled by default and can be enabled with
+`DatabaseMultiAZ=true`.
+
+CloudFormation generates separate master and application database credentials in Secrets Manager.
+Before starting the first ECS task, create the restricted `news_scheduler_app` role using the
+generated application password and make it the `news_scheduler` database owner. The master login is
+for setup/migration only; do not configure the application to use it.
+
 Before provisioning:
 
-1. Request and validate an ACM certificate in `us-east-2` for the public API hostname. The DNS name
-   must resolve to the ALB created by the stack.
-2. Ensure the AWS account does not already have a GitHub Actions OIDC provider for
-   `token.actions.githubusercontent.com`. If it exists, pass its ARN through
-   `ExistingGitHubOidcProviderArn`; otherwise CloudFormation creates it. The provider must list
-   `sts.amazonaws.com` as a client ID.
-3. Deploy the stack, substituting your ACM certificate ARN:
+1. HTTPS is recommended. To enable it, request and validate an ACM certificate in `us-east-2` for
+   a hostname whose DNS you control, then pass `CertificateArn`. Without a hostname/certificate,
+   omit that parameter; the ALB will serve HTTP only, without transport encryption.
+2. Check whether the AWS account already has a GitHub Actions OIDC provider for
+   `token.actions.githubusercontent.com` and whether the `GitHubActionsRole` already exists. Pass
+   existing resources through `ExistingGitHubOidcProviderArn` and
+   `ExistingGitHubActionsRoleName`; otherwise CloudFormation creates them. The OIDC provider must
+   list `sts.amazonaws.com` as a client ID.
+3. Deploy the stack (add `CertificateArn=<issued-certificate-arn>` only when enabling HTTPS):
 
    ```bash
    aws cloudformation deploy \
@@ -343,7 +358,8 @@ Before provisioning:
        GitHubOwnerId=75207496 \
        GitHubRepositoryName=news-scheduler-svc \
        GitHubRepositoryId=1368822070 \
-       CertificateArn=arn:aws:acm:us-east-2:ACCOUNT_ID:certificate/CERTIFICATE_ID \
+       ExistingGitHubOidcProviderArn=arn:aws:iam::221934031392:oidc-provider/token.actions.githubusercontent.com \
+       ExistingGitHubActionsRoleName=GitHubActionsRole \
        UseExistingEcrRepository=true \
        ExistingEcrRepositoryArn=arn:aws:ecr:us-east-2:221934031392:repository/news-scheduler-svc \
        ExistingEcrRepositoryUri=221934031392.dkr.ecr.us-east-2.amazonaws.com/news-scheduler-svc \
@@ -352,11 +368,15 @@ Before provisioning:
        ScheduleTimeZone=America/Chicago
    ```
 
-If the account already has the GitHub OIDC provider, add this parameter to the deployment command,
-using the existing provider ARN:
+If the account already has the GitHub OIDC provider or deployment role, pass their existing
+identifiers as parameters. The existing role's trust policy must match
+[`infra/aws/github-oidc-trust-policy.json`](infra/aws/github-oidc-trust-policy.json); when
+`ExistingGitHubActionsRoleName` is supplied, CloudFormation attaches the narrowly scoped ECS
+deployment policy to it.
 
 ```text
 ExistingGitHubOidcProviderArn=arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com
+ExistingGitHubActionsRoleName=GitHubActionsRole
 ```
 
 This repository was created after July 15, 2026, so GitHub issues OIDC tokens with immutable
@@ -366,7 +386,7 @@ deploy job's subject uses the same prefix followed by `:environment:staging`. Na
 subjects do not match this repository's tokens.
 
 The CI workflow assumes the role named `GitHubActionsRole`. For an existing role with that name,
-update its trust policy to match
+ensure its trust policy matches
 [`infra/aws/github-oidc-trust-policy.json`](infra/aws/github-oidc-trust-policy.json). That policy
 allows the package job's `main` branch token and the deploy job's `staging` environment token, and
 only the GitHub OIDC provider in AWS account `221934031392`. Apply it to the existing role with:
@@ -377,35 +397,33 @@ aws iam update-assume-role-policy \
   --policy-document file://infra/aws/github-oidc-trust-policy.json
 ```
 
-If `GitHubActionsRole` is managed separately from this CloudFormation stack, attach both the ECR
-image-publish policy and the ECS deployment policy. The ECS policy grants task-definition
-registration, service deployment for this cluster, and `iam:PassRole` only for the stack's ECS task
-execution role:
+If `GitHubActionsRole` is managed separately from this CloudFormation stack, attach the ECR
+image-publish policy. When `ExistingGitHubActionsRoleName` is passed to the stack, CloudFormation
+attaches the ECS deployment policy, granting task-definition registration, service deployment for
+this cluster, and `iam:PassRole` only for the stack's ECS task execution role:
 
 ```bash
 aws iam put-role-policy \
   --role-name GitHubActionsRole \
   --policy-name PublishNewsSchedulerImage \
   --policy-document file://infra/aws/github-actions-ecr-policy.json
-
-aws iam put-role-policy \
-  --role-name GitHubActionsRole \
-  --policy-name DeployNewsSchedulerEcsService \
-  --policy-document file://infra/aws/github-actions-ecs-policy.json
 ```
 
-For a CloudFormation-managed role, update the stack instead; its role policy grants the same
-permissions. Confirm the provider ARN and its `sts.amazonaws.com` client ID match the trust policy.
+If the role is managed entirely outside this stack, attach the ECS policy manually using
+`infra/aws/github-actions-ecs-policy.json`. For a stack-created role, CloudFormation grants the
+same permissions. Confirm the provider ARN and its `sts.amazonaws.com` client ID match the trust policy.
 Set GitHub's repository variable `AWS_ROLE_ARN` to
 `arn:aws:iam::221934031392:role/GitHubActionsRole` (or the `GitHubActionsRoleArn` stack output if
 CloudFormation manages the role). The ECR repository must also exist before CI can push an image.
-Set `AWS_REGION` to `us-east-2` and `PUBLIC_BASE_URL` to the deployed HTTPS API origin. The workflow
+Set `AWS_REGION` to `us-east-2` and `PUBLIC_BASE_URL` to the CloudFormation `ApplicationUrl` output.
+It uses HTTPS when `CertificateArn` is supplied and HTTP otherwise. The workflow
 deploys on pushes to `main`; choosing `main` for `workflow_dispatch` also publishes and deploys,
 while manual runs from other branches only build and test.
 
 If deployment fails with `AccessDenied` for `ecs:DescribeTaskDefinition`, the active role has not
-received the ECS policy. That action requires `Resource: "*"`. For a separately managed role, run the
-`put-role-policy` command above, then confirm it is attached:
+received the ECS policy. That action requires `Resource: "*"`. For a role passed through
+`ExistingGitHubActionsRoleName`, update the stack to refresh its ECS policy. For a role managed
+entirely outside the stack, attach the policy using the command below, then confirm it is attached:
 
 ```bash
 aws iam get-role-policy \
@@ -546,7 +564,8 @@ aws cloudformation deploy \
     GitHubOwnerId=75207496 \
     GitHubRepositoryName=news-scheduler-svc \
     GitHubRepositoryId=1368822070 \
-    CertificateArn=arn:aws:acm:us-east-2:ACCOUNT_ID:certificate/CERTIFICATE_ID \
+    ExistingGitHubOidcProviderArn=arn:aws:iam::221934031392:oidc-provider/token.actions.githubusercontent.com \
+    ExistingGitHubActionsRoleName=GitHubActionsRole \
     UseExistingEcrRepository=true \
     ExistingEcrRepositoryArn=arn:aws:ecr:us-east-2:221934031392:repository/news-scheduler-svc \
     ExistingEcrRepositoryUri=221934031392.dkr.ecr.us-east-2.amazonaws.com/news-scheduler-svc \
@@ -563,7 +582,7 @@ In GitHub repository **Settings → Secrets and variables → Actions → Variab
 | --- | --- |
 | `AWS_ROLE_ARN` | The `GitHubActionsRoleArn` CloudFormation output (`arn:aws:iam::221934031392:role/GitHubActionsRole` for this account) |
 | `AWS_REGION` | `us-east-2` |
-| `PUBLIC_BASE_URL` | The HTTPS URL for the DNS name covered by the ACM certificate |
+| `PUBLIC_BASE_URL` | The `ApplicationUrl` CloudFormation output (HTTP or HTTPS, depending on `CertificateArn`) |
 
 Create a GitHub Environment named `staging`, restrict its deployment branches to `main`, and configure
 required reviewers if deployments need approval. The CloudFormation role trusts only this
@@ -571,11 +590,12 @@ repository's `main` branch and the `staging` environment. GitHub Actions exchang
 for short-lived AWS credentials; do not add
 long-lived AWS access keys to GitHub. On pushes to `main`, the workflow tests the app, publishes a
 commit-tagged image to ECR, updates the ECS service, waits for stability, and checks health,
-metrics, and Prometheus endpoints over HTTPS. Pull requests build and test without AWS credentials.
+metrics, and Prometheus endpoints using `PUBLIC_BASE_URL`.
 
-The HTTPS ALB makes the existing application routes publicly reachable; HTTPS encrypts transport
-but does not add application authentication. Review endpoint access and add the intended
-authentication or network restrictions before using this as a public production API.
+The ALB makes existing application routes publicly reachable. HTTPS encrypts transport but does not
+add application authentication; HTTP-only mode provides no transport encryption. Review endpoint
+access and add the intended authentication or network restrictions before using this as a public
+production API.
 
 The Docker Desktop Kubernetes manifests and `scripts/deploy-local-k8s.sh` remain available for
 single-user local testing only. They are no longer used by the AWS CI/CD workflow.

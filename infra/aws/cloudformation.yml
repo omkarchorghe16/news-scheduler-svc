@@ -1,5 +1,19 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: AWS foundation for the news scheduler on ECS Fargate and RDS PostgreSQL.
+Description: AWS news scheduler on ECS Fargate and private RDS PostgreSQL; HTTPS is enabled when a certificate is supplied.
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@v3
+  com.aws.cloudformation.Context:
+    arch: Public ALB -> single ECS Fargate task -> private PostgreSQL; ECR + Secrets Manager
+    must:
+      - Keep ECS at one task until scheduled-work coordination exists.
+      - Supply an ACM certificate for HTTPS; without one the ALB serves HTTP only.
+      - Require SSL for every PostgreSQL client connection.
+    ref:
+      - at: README.md#deploy-to-aws-ecs-and-rds
+        has: Deployment prerequisites and endpoint operations
+        scope: same repo
 
 Parameters:
   GitHubOwner:
@@ -22,6 +36,10 @@ Parameters:
     Type: String
     Default: ""
     Description: Existing account-level GitHub OIDC provider ARN; leave blank to create one.
+  ExistingGitHubActionsRoleName:
+    Type: String
+    Default: ""
+    Description: Existing GitHub Actions role name; leave blank to create the role in this stack.
   UseExistingEcrRepository:
     Type: String
     Default: "false"
@@ -37,7 +55,8 @@ Parameters:
     Description: URI of the existing ECR repository when UseExistingEcrRepository is true.
   CertificateArn:
     Type: String
-    Description: ACM certificate ARN in this region for the public HTTPS endpoint.
+    Default: ""
+    Description: Optional ACM certificate ARN in this region; omit for HTTP-only access.
   CreateMigrationHost:
     Type: String
     Default: "false"
@@ -65,7 +84,10 @@ Conditions:
   CreateMigrationHostEnabled: !Equals [!Ref CreateMigrationHost, "true"]
   DatabaseMultiAZEnabled: !Equals [!Ref DatabaseMultiAZ, "true"]
   CreateGitHubOidcProvider: !Equals [!Ref ExistingGitHubOidcProviderArn, ""]
+  CreateGitHubActionsRole: !Equals [!Ref ExistingGitHubActionsRoleName, ""]
+  UseExistingGitHubActionsRole: !Not [!Equals [!Ref ExistingGitHubActionsRoleName, ""]]
   CreateEcrRepository: !Equals [!Ref UseExistingEcrRepository, "false"]
+  HasCertificate: !Not [!Equals [!Ref CertificateArn, ""]]
 
 Resources:
   Vpc:
@@ -161,7 +183,7 @@ Resources:
   ApplicationLoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow public HTTP redirect and HTTPS access to the application ALB.
+      GroupDescription: Allow public HTTP access and HTTPS when a certificate is configured.
       VpcId: !Ref Vpc
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -223,26 +245,49 @@ Resources:
         - !Ref PrivateSubnetA
         - !Ref PrivateSubnetB
 
+  DatabaseParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: Require TLS for all news scheduler PostgreSQL client connections.
+      Family: postgres18
+      Parameters:
+        rds.force_ssl: "1"
+
   Database:
     Type: AWS::RDS::DBInstance
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: private encrypted PostgreSQL persistence; RDS PostgreSQL chosen for standard engine compatibility and cost-conscious single-AZ deployment
+        must:
+          - Keep public access disabled and ingress limited to application/migration security groups.
+          - Keep deletion and replacement protected by final snapshots.
+          - Keep the generated master credential separate from the restricted application login.
+        mutable: change-with-constraints
+        mutability:
+          DBName: must-never-change
+          PubliclyAccessible: must-never-change
     DeletionPolicy: Snapshot
     UpdateReplacePolicy: Snapshot
     Properties:
       DBName: news_scheduler
       DBInstanceClass: !Ref DatabaseInstanceClass
       Engine: postgres
+      EngineVersion: "18.3"
       ManageMasterUserPassword: true
       MasterUsername: newsadmin
+      Port: 5432
       AllocatedStorage: "20"
       MaxAllocatedStorage: 100
       StorageType: gp3
       StorageEncrypted: true
       BackupRetentionPeriod: 7
+      AutoMinorVersionUpgrade: true
       CopyTagsToSnapshot: true
       DeletionProtection: true
       MultiAZ: !If [DatabaseMultiAZEnabled, true, false]
       PubliclyAccessible: false
       DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      DBParameterGroupName: !Ref DatabaseParameterGroup
       VPCSecurityGroups:
         - !GetAtt DatabaseSecurityGroup.GroupId
 
@@ -444,6 +489,7 @@ Resources:
 
   HttpsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: HasCertificate
     Properties:
       LoadBalancerArn: !Ref ApplicationLoadBalancer
       Port: 443
@@ -462,16 +508,19 @@ Resources:
       Port: 80
       Protocol: HTTP
       DefaultActions:
-        - Type: redirect
-          RedirectConfig:
-            Protocol: HTTPS
-            Port: "443"
-            StatusCode: HTTP_301
+        - !If
+          - HasCertificate
+          - Type: redirect
+            RedirectConfig:
+              Protocol: HTTPS
+              Port: "443"
+              StatusCode: HTTP_301
+          - Type: forward
+            TargetGroupArn: !Ref ApplicationTargetGroup
 
   EcsService:
     Type: AWS::ECS::Service
     DependsOn:
-      - HttpsListener
       - HttpRedirectListener
     Properties:
       ServiceName: news-scheduler-svc
@@ -509,6 +558,7 @@ Resources:
 
   GitHubActionsRole:
     Type: AWS::IAM::Role
+    Condition: CreateGitHubActionsRole
     Properties:
       RoleName: GitHubActionsRole
       AssumeRolePolicyDocument:
@@ -575,6 +625,40 @@ Resources:
                   StringEquals:
                     iam:PassedToService: ecs-tasks.amazonaws.com
 
+  ExistingGitHubActionsRolePolicy:
+    Type: AWS::IAM::Policy
+    Condition: UseExistingGitHubActionsRole
+    Properties:
+      PolicyName: DeployNewsSchedulerEcsService
+      Roles:
+        - !Ref ExistingGitHubActionsRoleName
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: ecs:DescribeTaskDefinition
+            Resource: "*"
+          - Effect: Allow
+            Action: ecs:RegisterTaskDefinition
+            Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/news-scheduler-svc:*"
+          - Effect: Allow
+            Action: ecs:DescribeClusters
+            Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/news-scheduler"
+          - Effect: Allow
+            Action:
+              - ecs:DescribeServices
+              - ecs:UpdateService
+            Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/news-scheduler/news-scheduler-svc"
+            Condition:
+              ArnEquals:
+                ecs:cluster: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/news-scheduler"
+          - Effect: Allow
+            Action: iam:PassRole
+            Resource: !GetAtt EcsTaskExecutionRole.Arn
+            Condition:
+              StringEquals:
+                iam:PassedToService: ecs-tasks.amazonaws.com
+
   MigrationHostRole:
     Type: AWS::IAM::Role
     Condition: CreateMigrationHostEnabled
@@ -615,7 +699,10 @@ Resources:
 Outputs:
   GitHubActionsRoleArn:
     Description: Set as the AWS_ROLE_ARN repository variable in GitHub.
-    Value: !GetAtt GitHubActionsRole.Arn
+    Value: !If
+      - CreateGitHubActionsRole
+      - !GetAtt GitHubActionsRole.Arn
+      - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ExistingGitHubActionsRoleName}"
   GitHubOidcProviderArn:
     Description: Account-level provider ARN used by the GitHub Actions role.
     Value: !If
@@ -632,8 +719,14 @@ Outputs:
   EcsServiceName:
     Value: news-scheduler-svc
   LoadBalancerDnsName:
-    Description: Point a DNS CNAME/alias and PUBLIC_BASE_URL at this HTTPS load balancer.
+    Description: ALB DNS name; use HTTPS if CertificateArn was supplied, otherwise HTTP.
     Value: !GetAtt ApplicationLoadBalancer.DNSName
+  ApplicationUrl:
+    Description: Base URL for GitHub Actions PUBLIC_BASE_URL.
+    Value: !If
+      - HasCertificate
+      - !Sub "https://${ApplicationLoadBalancer.DNSName}"
+      - !Sub "http://${ApplicationLoadBalancer.DNSName}"
   DatabaseEndpoint:
     Description: Private RDS endpoint; reachable only from the VPC.
     Value: !GetAtt Database.Endpoint.Address
