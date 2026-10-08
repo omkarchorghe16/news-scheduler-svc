@@ -28,8 +28,9 @@ application-wide conventions, affects deployment topology, or introduces a new s
 - `k8s/` and `scripts/deploy-local-k8s.sh` remain an optional single-user Docker Desktop workflow
   using PostgreSQL on the Mac host. It keeps one replica because scheduling is instance-local and
   syncs the ignored local secrets file into a Kubernetes Secret.
-- The GitHub Actions workflow builds and tests the application on pushes, pull requests, and manual
-  dispatches. It does not publish container images or deploy the application.
+- The GitHub Actions workflow packages/tests the application and builds a Docker image on pushes,
+  pull requests, and manual dispatches. It does not publish the image or deploy because Docker
+  Desktop Kubernetes is local-only; `scripts/deploy-local-k8s.sh` deploys and smoke-tests the image.
 
 ## Architecture rules
 

@@ -231,6 +231,14 @@ This Compose database is separate from any PostgreSQL already installed on the M
 separate from the Kubernetes configuration below, which still targets PostgreSQL on the Mac at
 `host.docker.internal:5432`.
 
+### CI image build and local Kubernetes deployment
+
+The GitHub Actions workflow runs the Maven package/tests and builds the Docker image on pushes,
+pull requests, and manual dispatches. The image is built on the GitHub runner only; it is not pushed
+to a registry. Since this branch uses a local Docker Desktop Kubernetes cluster and has no remote
+cluster, deployment is performed locally with the deploy script below. This avoids cloud credentials
+and keeps the same locally built image as the one deployed and smoke-tested.
+
 ### Deploy to Docker Desktop Kubernetes
 
 The `k8s/` manifests target the **Docker Desktop Kubernetes cluster on this Mac** and keep PostgreSQL
@@ -286,8 +294,8 @@ scheduled digest job; increasing replicas can send duplicate digests.
    secret store for shared or production clusters.
 
 4. Pass the local image tag to the helper. It verifies the Docker Desktop context and image,
-   syncs the local secrets file into the cluster, applies the manifests, and restarts/waits for the
-   Deployment:
+   syncs the local secrets file into the cluster, applies the manifests, restarts/waits for the
+   Deployment, and runs a readiness smoke test through a temporary port-forward on port `18080`:
 
    ```bash
    bash scripts/deploy-local-k8s.sh local
@@ -297,8 +305,9 @@ scheduled digest job; increasing replicas can send duplicate digests.
 
    Rebuild the image before redeploying after application changes. On every deployment, the helper
    refreshes the cluster Secret from the local file and restarts the pod, so updates to credentials
-   are picked up. The Actuator dependency and health probe settings are already enabled in `pom.xml`
-   and `application.yml`.
+   are picked up. The deploy command fails if the readiness endpoint does not return a successful
+   response. The Actuator dependency and health probe settings are already enabled in `pom.xml` and
+   `application.yml`.
 
 5. The ingress manifest expects an NGINX Ingress Controller with class `nginx`. If one is installed,
    map `dev.news-scheduler.example.com` to `127.0.0.1` in `/etc/hosts` on this Mac and open

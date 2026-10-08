@@ -25,7 +25,9 @@ applyTo: "**/*.java"
   decision.
 - Local development uses the PostgreSQL service in `compose.yaml`; the application connects to
   `postgres:5432` inside Compose and `localhost:5433` when run from the host. The workflow in
-  `.github/workflows/ci-cd.yml` builds and tests only; it does not publish images or deploy services.
+  `.github/workflows/ci-cd.yml` packages/tests the application and builds a Docker image, but does
+  not publish it or deploy because Docker Desktop Kubernetes is local-only. The local deploy script
+  applies the image and smoke-tests readiness.
 - Docker Desktop Kubernetes under `k8s/` is an optional local-only workflow. Keep it separate from
   the default Compose workflow and do not commit Kubernetes Secrets or local application credentials.
 - Put transaction boundaries on service workflows, not controllers or repositories, unless an

@@ -21,8 +21,10 @@ provider/database workflow.
   WireMock; tests must never require live provider credentials or internet access.
 - Database tests use the `test` profile and H2 configured in `src/test/resources/application.yml`.
   Do not require a developer's local PostgreSQL instance.
-- The GitHub Actions workflow compiles/packages and tests the application on pushes, pull requests,
-  and manual dispatches. It does not assume cloud credentials, publish images, or deploy.
+- The GitHub Actions workflow packages/tests the application and builds a Docker image on pushes,
+  pull requests, and manual dispatches. It does not require cloud credentials or publish images.
+  Local Docker Desktop Kubernetes deployment and readiness smoke testing use
+  `scripts/deploy-local-k8s.sh`.
 - Keep test fixtures synthetic. Do not use real tokens, API keys, personal data, or full live
   provider payloads.
 - The Postman collection targets the local application through its local environment. Mutation,
