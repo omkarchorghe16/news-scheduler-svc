@@ -35,9 +35,8 @@ controller tests.
    invalid request validation. Mock the service, not its repositories.
 5. Update `postman/stock-news-scheduler.postman_collection.json` for public API contract changes.
    Use `{{url}}` and non-secret request data. Keep any generated/local Postman exports in sync
-   only when those files are intentionally maintained by the repository. Share the collection
-   across local, AWS Dev, and AWS Production with separate Postman environments that each define
-   the same `url` variable; switching environments changes the target without changing requests.
+   only when those files are intentionally maintained by the repository. The maintained Postman
+   environment targets the local application using the `url` variable.
 6. Run the affected controller tests, then `mvn -q -DskipTests package` if the changed API affects
    compilation outside the test slice.
 7. Review every `.github/skills/*/SKILL.md`; update all skills affected by the API or shared

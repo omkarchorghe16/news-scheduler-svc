@@ -21,16 +21,12 @@ provider/database workflow.
   WireMock; tests must never require live provider credentials or internet access.
 - Database tests use the `test` profile and H2 configured in `src/test/resources/application.yml`.
   Do not require a developer's local PostgreSQL instance.
-- The GitHub Actions workflow deploys `main` to ECS after tests pass on pushes and manual dispatches
-  of `main`, then checks readiness, health, metrics, and Prometheus endpoints over the configured
-  CloudFormation `ApplicationUrl` (HTTP or HTTPS). Pull requests and manual runs from other branches
-  do not assume AWS credentials or deploy.
+- The GitHub Actions workflow compiles/packages and tests the application on pushes, pull requests,
+  and manual dispatches. It does not assume cloud credentials, publish images, or deploy.
 - Keep test fixtures synthetic. Do not use real tokens, API keys, personal data, or full live
   provider payloads.
-- The Postman collection is shared across local, AWS Dev, and AWS Production using separate
-  environments that each define `url`; selecting an environment changes the target. Its mutation,
-  digest-delivery, and provider requests can have real side effects; avoid running those requests
-  against production unless explicitly intended.
+- The Postman collection targets the local application through its local environment. Mutation,
+  digest-delivery, and provider requests can have real side effects.
 
 ## Implementation sequence
 

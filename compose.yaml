@@ -19,15 +19,16 @@ services:
   news-scheduler:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     image: news-scheduler-svc:local
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
+      SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-news_scheduler}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-news_scheduler}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}

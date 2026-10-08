@@ -16,14 +16,8 @@ Use this skill when changing persisted data, repository queries, or transactiona
   data in the `postgres_data` named volume; app containers connect to `postgres:5432`, while a
   host-run Spring Boot app and Mac database clients connect to `localhost:5433` by default. The
   ignored `.env` configures its database name, user, password, and host port; set the matching
-  datasource environment variables before launching Maven, or add them to the IDE run configuration. Docker
-  Desktop Kubernetes remains a local-only workflow using PostgreSQL on the Mac host. AWS ECS
-  connects to private RDS PostgreSQL using a
-  generated application login from Secrets Manager; the RDS master secret is for setup/migration.
-- AWS RDS PostgreSQL is pinned to engine 18.3 and uses an explicit `postgres18` parameter group
-  requiring TLS (`rds.force_ssl=1`). ECS JDBC connections must continue using `sslmode=require`.
-  The instance remains private, encrypted, protected from deletion, and backed up for one day to fit
-  the current Free plan's limit.
+  datasource environment variables before launching Maven, or add them to the IDE run configuration.
+  Docker Desktop Kubernetes is an optional local-only workflow using PostgreSQL on the Mac host.
 - JPA entities live in `com.stocknews.model`; Spring Data repositories live in
   `com.stocknews.repository`; use-case transactions belong in service classes.
 - Preserve existing entity/table/column naming and typed models. Keep provider-specific records
@@ -49,9 +43,7 @@ Use this skill when changing persisted data, repository queries, or transactiona
 5. If the data is exposed over HTTP, update its DTOs, OpenAPI documentation, MockMvc tests, and
    Postman collection as needed.
 6. Run targeted tests and a Maven package/compile.
-7. For AWS database setup, create the runtime PostgreSQL role before launching the first ECS task.
-   Migrate local Compose data through the temporary SSM tunnel and keep database dumps out of Git.
-8. Review every `.github/skills/*/SKILL.md`; update all skills affected by the data model or shared
+7. Review every `.github/skills/*/SKILL.md`; update all skills affected by the data model or shared
    conventions. Update `README.md` and relevant schema, setup, API, or operational documentation.
 
 ## Verification checklist

@@ -28,38 +28,8 @@ application-wide conventions, affects deployment topology, or introduces a new s
 - `k8s/` and `scripts/deploy-local-k8s.sh` remain an optional single-user Docker Desktop workflow
   using PostgreSQL on the Mac host. It keeps one replica because scheduling is instance-local and
   syncs the ignored local secrets file into a Kubernetes Secret.
-- `infra/aws/cloudformation.yml` provisions the AWS deployment: public ALB (HTTPS with an ACM
-  certificate, HTTP-only without one), ECS Fargate,
-  private encrypted RDS PostgreSQL, ECR, Secrets Manager, CloudWatch Logs, and a repository-scoped
-  `GitHubActionsRole` OIDC role. Its trust policy admits this repository's immutable GitHub OIDC
-  owner/repository IDs on `main` for image publishing and the `staging` environment for deployment;
-  `infra/aws/github-oidc-trust-policy.json` is the matching policy for an existing role, and
-  `infra/aws/github-actions-ecr-policy.json` scopes image-publish permissions to this repository's
-  ECR ARN while allowing the required account-level ECR authentication action, and
-  `infra/aws/github-actions-ecs-policy.json` scopes task-definition description/registration, ECS
-  cluster description, service deployment, and `iam:PassRole` for a separately managed role. The
-  workflow reads the current task-definition ARN from the ECS service instead of listing
-  task-definition families, and preflights that the cluster is active before querying the service.
-  The CloudFormation stack must be successfully deployed in the same AWS account and region the
-  workflow assumes. The
-  CloudFormation template can either create ECR or reference a pre-created repository using its ARN and URI
-  parameters; pass the existing-repository parameters if CI bootstrapped ECR before the stack.
-  The template can
-  reference an existing account-level
-  GitHub OIDC provider or create one. The Fargate task uses public subnets for outbound provider calls, but its security
-  group permits inbound application traffic only from the ALB. RDS remains private, encrypted,
-  protected by snapshots, and configured to require TLS for PostgreSQL clients.
-- The CI workflow builds and tests on GitHub-hosted runners, pushes a uniquely tagged image to ECR,
-  and deploys `main` to ECS using short-lived OIDC credentials on pushes and manual dispatches of
-  `main`. Post-deploy smoke tests use the configured public `ApplicationUrl` (HTTP or HTTPS).
-  HTTPS is recommended; HTTP-only mode is available without a certificate. The service remains at one
-  task because scheduled jobs are instance-local; ECS deployments stop the old task before starting
-  its replacement to avoid duplicate digests.
-- Runtime provider/notification values and the generated application database login are stored in
-  Secrets Manager. RDS's generated master credential is reserved for setup/migration. An optional
-  temporary SSM-only EC2 host provides a private tunnel for importing the local Compose database;
-  remove it when setup is complete. No AWS credentials or live application secrets belong in GitHub
-  workflow files or the repository.
+- The GitHub Actions workflow builds and tests the application on pushes, pull requests, and manual
+  dispatches. It does not publish container images or deploy the application.
 
 ## Architecture rules
 
@@ -82,11 +52,10 @@ application-wide conventions, affects deployment topology, or introduces a new s
 - Do not introduce another datasource, production H2 mirroring, migration framework, security
   mechanism, or new architecture pattern without confirming compatibility and the intended trade-off.
 - Keep local Compose PostgreSQL isolated in its named volume and bound to host loopback; do not
-  conflate it with the separate Mac-hosted PostgreSQL used by the Kubernetes configuration. Keep
-  local `.env` secrets out of the build context and image.
-- Keep Docker Desktop Kubernetes and ECS at one application instance unless scheduled-work
-  coordination is introduced; never commit Kubernetes Secrets, AWS credentials, or application
-  credentials.
+  conflate it with the separate Mac-hosted PostgreSQL used by the optional Kubernetes configuration.
+  Keep local `.env` secrets out of the build context and image.
+- Keep Docker Desktop Kubernetes at one application instance unless scheduled-work coordination is
+  introduced; never commit Kubernetes Secrets or application credentials.
 
 ## Implementation sequence
 

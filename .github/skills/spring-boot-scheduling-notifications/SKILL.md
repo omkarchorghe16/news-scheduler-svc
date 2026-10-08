@@ -21,9 +21,8 @@ delivery-channel behavior.
 - Keep schedules, time zones, watchlists, and notification/provider settings in `AppProperties` and
   `application.yml`. For Docker Compose local runs, supported schedule and WhatsApp settings can be
   overridden through the ignored `.env` file.
-- The AWS ECS service is configured for one task, and deployments stop the old task before starting
-  its replacement. Do not scale it above one or permit overlapping tasks unless scheduled digest
-  execution is coordinated across instances.
+- Docker Compose runs a single application container locally. Avoid introducing multiple concurrent
+  scheduler instances unless scheduled digest execution is coordinated across instances.
 - Never log complete message bodies, raw provider responses, webhook URLs, bot tokens, or auth
   headers. Log operation and safe counts/status instead.
 - Preserve the scheduler's resilience boundary and make failures visible through established

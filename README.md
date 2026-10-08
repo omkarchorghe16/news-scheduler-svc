@@ -15,7 +15,7 @@ A complete Java Spring Boot application that fetches daily stock market news for
 - **Sector and Stock Management**: CRUD endpoints for sectors and sector-associated stock tickers, including bulk stock creation
 - **API Documentation**: Interactive Swagger UI and generated OpenAPI specification
 - **Database**: PostgreSQL for application data; H2 is used only by tests
-- **AWS Deployment**: GitHub Actions OIDC, Amazon ECR, ECS Fargate, private RDS PostgreSQL, and Secrets Manager
+- **Local Development**: Docker Compose starts the Spring Boot service with local PostgreSQL
 - **Development Standards**: Repository-specific Copilot instructions and reusable backend skills for architecture, REST APIs, JPA, provider integrations, scheduling/notifications, and testing
 - **Configurable Everything**: @ConfigurationProperties binds all settings from environment variables
 
@@ -175,17 +175,13 @@ app:
 
 Create it locally without adding it to Git, restrict its filesystem permissions (for example,
 `chmod 600 application-secrets.yml` on macOS/Linux), and check `git status` to confirm it is ignored.
-The import is optional for direct local runs. The local Docker Compose setup below mounts this file
-read-only into the running container; it is excluded from the Docker build context and image. For
-deployed environments, use the platform secret store or environment variables instead.
+The import is optional for direct local runs. Docker Compose passes configuration through `.env` and
+does not mount this file. The optional Docker Desktop Kubernetes workflow can mount it as a local
+Kubernetes Secret; it is excluded from the Docker build context and image.
 
-For deployment, save each credential in the deployment platform's secret store (or a cloud secret
-manager such as AWS Secrets Manager, Azure Key Vault, or Google Secret Manager), then expose it to
-the application as an environment variable. Configure `FINNHUB_API_KEY`, `NEWSAPI_KEY`, and any
-notification credentials there; Spring resolves them via the `${VARIABLE:}` placeholders in
-`application.yml`. Keep different credentials for dev, test, and production, and never put secrets
-in the image, source repository, or plain deployment manifests. For CI tests, supply test credentials
-through the CI platform's protected secrets; tests that mock providers do not need a live key.
+Keep credentials in local environment variables or ignored local files; never put them in the image,
+source repository, Postman exports, or committed manifests. Automated tests use mocks and do not
+require live provider keys.
 
 Credentials pasted into chat or other shared systems should be treated as exposed. Revoke/regenerate
 credentials immediately if they are accidentally exposed.
@@ -204,9 +200,8 @@ Then set a development-only `POSTGRES_PASSWORD` in `.env`, as well as the
 `FMP_API_KEY`, `FINNHUB_API_KEY`, `NEWSAPI_KEY`, `ALPHA_VANTAGE_API_KEY`, and notification
 credentials you use.
 Compose passes these environment variables to Spring Boot, where `application.yml` already maps them
-to the corresponding settings. Database credentials also come from `.env`. The app container no
-longer needs `application-secrets.yml`; that file remains an optional approach for direct local
-Spring Boot runs and the separate Kubernetes setup. Never commit `.env`; it is ignored by Git.
+to the corresponding settings. Database credentials also come from `.env`. The app container does not need `application-secrets.yml`; that file remains optional for direct
+local Spring Boot runs and the separate Kubernetes setup. Never commit `.env`; it is ignored by Git.
 The template also includes provider URLs/limits, WhatsApp enablement, provider timeout/retries, and
 digest schedule/timezone settings. Leave defaults unchanged unless you want to override them.
 
@@ -315,299 +310,6 @@ scheduled digest job; increasing replicas can send duplicate digests.
 
    Then use `http://localhost:8080`. Readiness and liveness endpoints are at
    `/actuator/health/readiness` and `/actuator/health/liveness`.
-
-### Deploy to AWS ECS and RDS
-
-`infra/aws/cloudformation.yml` provisions an ECR repository, an ECS Fargate service, a public ALB
-(HTTPS when an ACM certificate is supplied, otherwise HTTP-only), private RDS for PostgreSQL,
-Secrets Manager secrets, CloudWatch logs, and a GitHub OIDC
-deployment role in `us-east-2`. The Fargate service starts with zero tasks until the first successful
-CI deployment. It is intentionally kept at one task because each instance runs the scheduled digest.
-Deploy the CloudFormation stack successfully before running the GitHub deployment workflow: the
-stack creates the `news-scheduler-svc` task-definition family (initially using the `:bootstrap` image),
-the `news-scheduler` cluster, and the `news-scheduler-svc` service that the workflow updates.
-The RDS instance is private and encrypted. Fargate tasks run in public subnets with public IPs so they
-can call news/notification providers without a NAT gateway; their security group accepts application
-traffic only from the ALB. This avoids NAT gateway charges but is a cost-conscious starting topology,
-not a substitute for a reviewed production network design.
-
-The RDS instance runs PostgreSQL 18.3 in `news_scheduler`, uses a `db.t4g.micro` by default, starts
-with 20 GiB of encrypted gp3 storage that can autoscale to 100 GiB, retains one day of automated
-backups to fit the current Free plan limit, and has deletion protection plus snapshot retention on
-deletion/replacement. It is private
-and uses a custom `postgres18` parameter group requiring TLS (`rds.force_ssl=1`); the ECS JDBC URL
-also sets `sslmode=require`. Multi-AZ is disabled by default and can be enabled with
-`DatabaseMultiAZ=true`.
-
-CloudFormation generates separate master and application database credentials in Secrets Manager.
-Before starting the first ECS task, create the restricted `news_scheduler_app` role using the
-generated application password and make it the `news_scheduler` database owner. The master login is
-for setup/migration only; do not configure the application to use it.
-
-Before provisioning:
-
-1. HTTPS is recommended. To enable it, request and validate an ACM certificate in `us-east-2` for
-   a hostname whose DNS you control, then pass `CertificateArn`. Without a hostname/certificate,
-   omit that parameter; the ALB will serve HTTP only, without transport encryption.
-2. Check whether the AWS account already has a GitHub Actions OIDC provider for
-   `token.actions.githubusercontent.com` and whether the `GitHubActionsRole` already exists. Pass
-   existing resources through `ExistingGitHubOidcProviderArn` and
-   `ExistingGitHubActionsRoleName`; otherwise CloudFormation creates them. The OIDC provider must
-   list `sts.amazonaws.com` as a client ID.
-3. Deploy the stack (add `CertificateArn=<issued-certificate-arn>` only when enabling HTTPS):
-
-   ```bash
-   aws cloudformation deploy \
-     --template-file infra/aws/cloudformation.yml \
-     --stack-name news-scheduler-svc \
-     --region us-east-2 \
-     --capabilities CAPABILITY_NAMED_IAM \
-     --parameter-overrides \
-       GitHubOwner=omkarchorghe16 \
-       GitHubOwnerId=75207496 \
-       GitHubRepositoryName=news-scheduler-svc \
-       GitHubRepositoryId=1368822070 \
-       ExistingGitHubOidcProviderArn=arn:aws:iam::221934031392:oidc-provider/token.actions.githubusercontent.com \
-       ExistingGitHubActionsRoleName=GitHubActionsRole \
-       UseExistingEcrRepository=true \
-       ExistingEcrRepositoryArn=arn:aws:ecr:us-east-2:221934031392:repository/news-scheduler-svc \
-       ExistingEcrRepositoryUri=221934031392.dkr.ecr.us-east-2.amazonaws.com/news-scheduler-svc \
-       CreateMigrationHost=true \
-       ScheduleCronExpression="0 0 9 * * MON-FRI" \
-       ScheduleTimeZone=America/Chicago
-   ```
-
-If the account already has the GitHub OIDC provider or deployment role, pass their existing
-identifiers as parameters. The existing role's trust policy must match
-[`infra/aws/github-oidc-trust-policy.json`](infra/aws/github-oidc-trust-policy.json); when
-`ExistingGitHubActionsRoleName` is supplied, CloudFormation attaches the narrowly scoped ECS
-deployment policy to it.
-
-```text
-ExistingGitHubOidcProviderArn=arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com
-ExistingGitHubActionsRoleName=GitHubActionsRole
-```
-
-This repository was created after July 15, 2026, so GitHub issues OIDC tokens with immutable
-subjects that include the owner ID (`75207496`) and repository ID (`1368822070`). The package job's
-subject is `repo:omkarchorghe16@75207496/news-scheduler-svc@1368822070:ref:refs/heads/main`; the
-deploy job's subject uses the same prefix followed by `:environment:staging`. Name-only trust
-subjects do not match this repository's tokens.
-
-The CI workflow assumes the role named `GitHubActionsRole`. For an existing role with that name,
-ensure its trust policy matches
-[`infra/aws/github-oidc-trust-policy.json`](infra/aws/github-oidc-trust-policy.json). That policy
-allows the package job's `main` branch token and the deploy job's `staging` environment token, and
-only the GitHub OIDC provider in AWS account `221934031392`. Apply it to the existing role with:
-
-```bash
-aws iam update-assume-role-policy \
-  --role-name GitHubActionsRole \
-  --policy-document file://infra/aws/github-oidc-trust-policy.json
-```
-
-If `GitHubActionsRole` is managed separately from this CloudFormation stack, attach the ECR
-image-publish policy. When `ExistingGitHubActionsRoleName` is passed to the stack, CloudFormation
-attaches the ECS deployment policy, granting task-definition registration, service deployment for
-this cluster, and `iam:PassRole` only for the stack's ECS task execution role:
-
-```bash
-aws iam put-role-policy \
-  --role-name GitHubActionsRole \
-  --policy-name PublishNewsSchedulerImage \
-  --policy-document file://infra/aws/github-actions-ecr-policy.json
-```
-
-If the role is managed entirely outside this stack, attach the ECS policy manually using
-`infra/aws/github-actions-ecs-policy.json`. For a stack-created role, CloudFormation grants the
-same permissions. Confirm the provider ARN and its `sts.amazonaws.com` client ID match the trust policy.
-Set GitHub's repository variable `AWS_ROLE_ARN` to
-`arn:aws:iam::221934031392:role/GitHubActionsRole` (or the `GitHubActionsRoleArn` stack output if
-CloudFormation manages the role). The ECR repository must also exist before CI can push an image.
-Set `AWS_REGION` to `us-east-2` and `PUBLIC_BASE_URL` to the CloudFormation `ApplicationUrl` output.
-It uses HTTPS when `CertificateArn` is supplied and HTTP otherwise. The workflow
-deploys on pushes to `main`; choosing `main` for `workflow_dispatch` also publishes and deploys,
-while manual runs from other branches only build and test.
-
-If deployment fails with `AccessDenied` for `ecs:DescribeTaskDefinition`, the active role has not
-received the ECS policy. That action requires `Resource: "*"`. For a role passed through
-`ExistingGitHubActionsRoleName`, update the stack to refresh its ECS policy. For a role managed
-entirely outside the stack, attach the policy using the command below, then confirm it is attached:
-
-```bash
-aws iam get-role-policy \
-  --role-name GitHubActionsRole \
-  --policy-name DeployNewsSchedulerEcsService
-```
-
-If deployment fails with `AccessDenied` for `ecs:DescribeClusters`, update the separately managed
-role with the current `infra/aws/github-actions-ecs-policy.json`; it now grants read access to this
-cluster only. For a CloudFormation-managed role, update the stack so the inline policy is refreshed.
-
-For a stack-managed role, update the CloudFormation stack and confirm its `GitHubActionsRole` policy
-resource completed successfully. Verify `AWS_ROLE_ARN` points to
-`arn:aws:iam::221934031392:role/GitHubActionsRole`, then rerun the workflow; do not attach a second,
-manually managed policy to a stack-owned role.
-The workflow first verifies that the `news-scheduler` cluster is `ACTIVE`, then reads the active
-task-definition ARN directly from the ECS service; the `GitHubActionsRole` does not need
-`ecs:ListTaskDefinitions`. If it reports that the cluster is missing or inactive, confirm the stack
-reached `CREATE_COMPLETE` or `UPDATE_COMPLETE` in the same AWS account and region used by
-`AWS_ROLE_ARN` and `AWS_REGION`. `AWS_REGION` defaults to `us-east-2`. Do not rerun the full stack
-without checking its status first, because it provisions billable resources. To verify the cluster:
-
-```bash
-aws ecs describe-clusters \
-  --clusters news-scheduler \
-  --query 'clusters[0].status' \
-  --output text \
-  --region us-east-2
-```
-
-If the cluster is active but the workflow reports the service missing, check the service and its task
-definition with:
-
-```bash
-aws ecs describe-services \
-  --cluster news-scheduler \
-  --services news-scheduler-svc \
-  --query 'services[0].taskDefinition' \
-  --output text \
-  --region us-east-2
-```
-
-If no task definition ARN is returned, create/update the infrastructure stack before rerunning CI.
-If an ARN is returned but `DescribeTaskDefinition` still fails, confirm the role has that action
-allowed on `Resource: "*"` and that `AWS_ROLE_ARN` targets the same AWS account as the stack.
-If creating the stack around an already existing role, CloudFormation cannot adopt that role
-automatically; apply the trust and permission policies above, or arrange to import the role into
-the stack before deploying the template.
-
-The ECR repository `news-scheduler-svc` has been created in `us-east-2` in this AWS project so the
-current GitHub image push can use it. Its URI is
-`221934031392.dkr.ecr.us-east-2.amazonaws.com/news-scheduler-svc`. Use the following CloudFormation
-parameters when deploying the full stack so it references this existing repository rather than
-trying to create a duplicate. For a new setup with no repository, omit these parameters and the
-stack will create it:
-
-```text
-UseExistingEcrRepository=true
-ExistingEcrRepositoryArn=arn:aws:ecr:us-east-2:221934031392:repository/news-scheduler-svc
-ExistingEcrRepositoryUri=221934031392.dkr.ecr.us-east-2.amazonaws.com/news-scheduler-svc
-```
-
-The temporary migration host is an SSM-managed EC2 instance with no inbound ports. It allows the
-Compose PostgreSQL data to be restored into private RDS without making the database internet
-accessible. Install the AWS CLI, Session Manager plugin, and PostgreSQL 17 client tools locally.
-Export the Compose data before connecting:
-
-```bash
-pg_dump --host localhost --port 5433 --username news_scheduler \
-  --dbname news_scheduler --format=custom --no-owner --no-acl \
-  --file news_scheduler.dump
-```
-
-Read the `MigrationHostInstanceId`, `DatabaseEndpoint`, `DatabaseSecretArn`, and
-`ApplicationDatabaseSecretArn` stack outputs. Retrieve the generated master and application
-credentials from Secrets Manager without placing them in source control or command history. Start
-an SSM port-forward (leave this terminal open):
-
-```bash
-aws ssm start-session \
-  --target MIGRATION_INSTANCE_ID \
-  --document-name AWS-StartPortForwardingSessionToRemoteHost \
-  --parameters '{"host":["RDS_ENDPOINT"],"portNumber":["5432"],"localPortNumber":["15432"]}' \
-  --region us-east-2
-```
-
-In another terminal, connect as the generated RDS master user. Create the restricted runtime role
-using the generated password from `ApplicationDatabaseSecretArn`, then make it the database owner:
-
-```bash
-export PGSSLMODE=require
-psql --host 127.0.0.1 --port 15432 --username newsadmin \
-  --dbname postgres --set ON_ERROR_STOP=1
-```
-
-At the `psql` prompt, run:
-
-```sql
-CREATE ROLE news_scheduler_app LOGIN;
-\password news_scheduler_app
-ALTER DATABASE news_scheduler OWNER TO news_scheduler_app;
-\connect news_scheduler
-ALTER SCHEMA public OWNER TO news_scheduler_app;
-\q
-```
-
-Restore the dump as `news_scheduler_app` so the imported tables are owned by the runtime role. For a
-fresh database, skip the dump/restore but still create the runtime role:
-
-```bash
-pg_restore --host 127.0.0.1 --port 15432 --username news_scheduler_app \
-  --dbname news_scheduler --no-owner --no-acl news_scheduler.dump
-```
-
-In Secrets Manager, replace the empty values in the `ApplicationSecretArn` JSON with the provider
-and notification credentials you use. The generated application database secret's password must
-match the value entered with `\password`; set `WHATSAPP_ENABLED` to `"true"` only when WhatsApp
-delivery should be active. `ScheduleCronExpression` and `ScheduleTimeZone` are CloudFormation
-parameters if the default schedule is not appropriate. A running task does not automatically reload
-changed secret values; force a new ECS deployment after rotating them:
-
-```bash
-aws ecs update-service --cluster news-scheduler --service news-scheduler-svc \
-  --force-new-deployment --region us-east-2
-```
-
-After confirming the restored data, redeploy the stack with `CreateMigrationHost=false` to remove
-the temporary host and its RDS security-group access:
-
-```bash
-aws cloudformation deploy \
-  --template-file infra/aws/cloudformation.yml \
-  --stack-name news-scheduler-svc \
-  --region us-east-2 \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides \
-    GitHubOwner=omkarchorghe16 \
-    GitHubOwnerId=75207496 \
-    GitHubRepositoryName=news-scheduler-svc \
-    GitHubRepositoryId=1368822070 \
-    ExistingGitHubOidcProviderArn=arn:aws:iam::221934031392:oidc-provider/token.actions.githubusercontent.com \
-    ExistingGitHubActionsRoleName=GitHubActionsRole \
-    UseExistingEcrRepository=true \
-    ExistingEcrRepositoryArn=arn:aws:ecr:us-east-2:221934031392:repository/news-scheduler-svc \
-    ExistingEcrRepositoryUri=221934031392.dkr.ecr.us-east-2.amazonaws.com/news-scheduler-svc \
-    CreateMigrationHost=false \
-    DatabaseInstanceClass=db.t4g.micro \
-    DatabaseMultiAZ=false \
-    ScheduleCronExpression="0 0 9 * * MON-FRI" \
-    ScheduleTimeZone=America/Chicago
-```
-
-In GitHub repository **Settings → Secrets and variables → Actions → Variables**, set:
-
-| Variable | Value |
-| --- | --- |
-| `AWS_ROLE_ARN` | The `GitHubActionsRoleArn` CloudFormation output (`arn:aws:iam::221934031392:role/GitHubActionsRole` for this account) |
-| `AWS_REGION` | `us-east-2` |
-| `PUBLIC_BASE_URL` | The `ApplicationUrl` CloudFormation output (HTTP or HTTPS, depending on `CertificateArn`) |
-
-Create a GitHub Environment named `staging`, restrict its deployment branches to `main`, and configure
-required reviewers if deployments need approval. The CloudFormation role trusts only this
-repository's `main` branch and the `staging` environment. GitHub Actions exchanges its OIDC token
-for short-lived AWS credentials; do not add
-long-lived AWS access keys to GitHub. On pushes to `main`, the workflow tests the app, publishes a
-commit-tagged image to ECR, updates the ECS service, waits for stability, and checks health,
-metrics, and Prometheus endpoints using `PUBLIC_BASE_URL`.
-
-The ALB makes existing application routes publicly reachable. HTTPS encrypts transport but does not
-add application authentication; HTTP-only mode provides no transport encryption. Review endpoint
-access and add the intended authentication or network restrictions before using this as a public
-production API.
-
-The Docker Desktop Kubernetes manifests and `scripts/deploy-local-k8s.sh` remain available for
-single-user local testing only. They are no longer used by the AWS CI/CD workflow.
 
 ### 1. Clone the Repository
 
@@ -732,19 +434,16 @@ Yahoo Finance is an unofficial API and may rate-limit requests or change its res
 Alpha Vantage requests are limited to 25 per day and 5 per minute. The daily count is persisted in
 PostgreSQL, and requests wait when the per-minute quota is reached. Each symbol consumes one call.
 Create your own API key at [alphavantage.co](https://www.alphavantage.co/support/#api-key) and set
-`ALPHA_VANTAGE_API_KEY` in your environment or secret store.
+`ALPHA_VANTAGE_API_KEY` in your local environment or ignored `.env` file.
 The Postman collection includes profile requests for all four providers and a validation test for an
 empty symbol list. Import one collection, `postman/stock-news-scheduler.postman_collection.json`,
-and the Local, AWS Dev, and AWS Production environments from `postman/`. Each environment uses the
-same `url` variable key, so select the desired environment in Postman to switch targets without
-editing requests or URLs. AWS Dev is prefilled with the current HTTP ALB URL from the CloudFormation
-`ApplicationUrl` output. Set `url` in the AWS Production environment to the production
-`ApplicationUrl` before selecting it. Configure Finnhub, Alpha Vantage, and FMP API keys in the
-running application to run Stock Profiles; the Yahoo request does not require a key.
+and the Local environment from `postman/`. The Local environment points to
+`http://localhost:8080`; configure Finnhub, Alpha Vantage, and FMP API keys in the running application
+to run Stock Profiles. The Yahoo request does not require a key.
 
 The collection includes requests that create/update/delete database records, trigger digests and
-notifications, and call provider APIs. Do not run the full collection or folders against production
-unless you intend those side effects; use read-only health/metrics requests there by default.
+notifications, and call provider APIs. Review the request before sending it because some requests
+have database, notification, or provider side effects.
 
 ### Adding Stock Symbols
 
@@ -894,9 +593,7 @@ spring:
     password: "your-postgres-password"
 ```
 
-Never commit this local file. For deployed dev/test environments, add these as environment
-variables/secrets in the deployment platform's secret manager or CI/CD environment configuration;
-do not package `application-secrets.yml` into the deployment artifact.
+Never commit this local file or package it into the application image.
 
 In IntelliJ IDEA, open **Run | Edit Configurations**, select `StockNewsApplication`, and add
 `POSTGRES_USER=...`, `POSTGRES_PASSWORD=...`, and any provider variables such as

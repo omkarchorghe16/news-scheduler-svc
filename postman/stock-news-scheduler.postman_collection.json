@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Stock News Scheduler Service",
-    "description": "Shared Postman collection for local, AWS dev, and AWS production. Select the matching Postman environment to change the url.",
+    "description": "Postman collection for the local application. Select the Local environment to target http://localhost:8080.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
