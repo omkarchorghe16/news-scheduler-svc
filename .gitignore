@@ -30,13 +30,12 @@ logs/
 
 # Environment
 .env
+!.env
 .env.local
 .env.k8s
-!.env.example
 application-local.yml
 application-local.yaml
 !src/main/resources/application-local.yml
-!src/test/resources/application-local.yml
 application-secrets.yml
 application-secrets.yaml
 

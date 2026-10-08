@@ -120,12 +120,11 @@ make unrelated skill edits just to create churn.
 
 ### Keeping API keys and credentials out of Git
 
-`application.yml` reads secrets from environment variables (for example, `FINNHUB_API_KEY`);
-do not put real values in the committed file. For local development, copy `.env.example` to the
-ignored `.env`, set a development-only `POSTGRES_PASSWORD`, then start the local PostgreSQL service:
+`application.yml` reads secrets from environment variables (for example, `FINNHUB_API_KEY`). The
+repository `.env` starts with blank secret values; fill in local development values before starting
+the PostgreSQL service:
 
 ```bash
-cp .env.example .env
 docker compose up -d postgres
 ```
 
@@ -148,8 +147,8 @@ local-only password in `.env` and the host app's environment. If you change `POS
 files containing credentials, or paste secrets into Postman exports.
 
 An optional local YAML override is also supported: copy
-`src/main/resources/application-local.yml.example` to the repository root as
-`application-local.yml`, then run with the `local` Spring profile. That filename is in `.gitignore`.
+`src/main/resources/application-local.yml` to the repository root as
+`application-local.yml`, then run with the `local` Spring profile. The root override is ignored by Git.
 Prefer referencing environment variables in the local file rather than writing literal secrets:
 
 ```yaml
@@ -188,21 +187,17 @@ credentials immediately if they are accidentally exposed.
 
 ### Run Spring Boot and PostgreSQL in Docker for development
 
-Compose automatically reads `.env` from the repository root; it does not read `.env.example`.
-`.env.example` is a tracked template so the required local settings are clear without committing a
-password. Create the ignored runtime file from the template:
-
-```bash
-cp .env.example .env
-```
+Compose automatically reads `.env` from the repository root. The repository file contains blank
+secret values; populate it with development-only credentials for local use.
 
 Then set a development-only `POSTGRES_PASSWORD` in `.env`, as well as the
 `FMP_API_KEY`, `FINNHUB_API_KEY`, `NEWSAPI_KEY`, `ALPHA_VANTAGE_API_KEY`, and notification
-credentials you use.
+credentials you use. Do not commit real credentials in `.env`.
 Compose passes these environment variables to Spring Boot, where `application.yml` already maps them
 to the corresponding settings. Database credentials also come from `.env`. The app container does not need `application-secrets.yml`; that file remains optional for direct
-local Spring Boot runs and the separate Kubernetes setup. Never commit `.env`; it is ignored by Git.
-The template also includes provider URLs/limits, WhatsApp enablement, provider timeout/retries, and
+local Spring Boot runs and the separate Kubernetes setup. `.env` is allowed by `.gitignore` so the
+blank starter file can be tracked; take care not to commit it after adding credentials. It also
+includes provider URLs/limits, WhatsApp enablement, provider timeout/retries, and
 digest schedule/timezone settings. Leave defaults unchanged unless you want to override them.
 
 Start both services from the repository root:
@@ -231,13 +226,23 @@ This Compose database is separate from any PostgreSQL already installed on the M
 separate from the Kubernetes configuration below, which still targets PostgreSQL on the Mac at
 `host.docker.internal:5432`.
 
-### CI image build and local Kubernetes deployment
+### CI image build and Kubernetes deployment
 
-The GitHub Actions workflow runs the Maven package/tests and builds the Docker image on pushes,
-pull requests, and manual dispatches. The image is built on the GitHub runner only; it is not pushed
-to a registry. Since this branch uses a local Docker Desktop Kubernetes cluster and has no remote
-cluster, deployment is performed locally with the deploy script below. This avoids cloud credentials
-and keeps the same locally built image as the one deployed and smoke-tested.
+The GitHub Actions workflow runs Maven package/tests and builds the Docker image on pushes, pull
+requests, and manual dispatches. Non-PR runs publish commit-tagged and `latest` images to GHCR.
+Pushes to `main` and manual workflow runs also deploy to the `dev` namespace. Configure these
+repository secrets before enabling deployment:
+
+- `KUBE_CONFIG`: kubeconfig contents for the target cluster, with permission to manage the `dev`
+  namespace and its Deployment, Service, Ingress, and Secret.
+- `APP_SECRETS_YAML`: contents of the Spring `application-secrets.yml` file, including database
+  credentials and provider keys.
+
+The deployed image must be pullable by the cluster. Make the GHCR package public or configure an
+image pull secret on the `dev` namespace. The existing manifests target the `dev` namespace, use
+`host.docker.internal:5432/postgres` for PostgreSQL, and use an example ingress host; update these
+for the cluster and database before deploying remotely. Keep the deployment at one replica because
+each instance runs the scheduled digest job.
 
 ### Deploy to Docker Desktop Kubernetes
 
@@ -376,7 +381,7 @@ automatically by Maven or IDEs.
 
 **Optional local schedule override (every 5 minutes)**
 ```bash
-cp src/main/resources/application-local.yml.example application-local.yml
+cp src/main/resources/application-local.yml application-local.yml
 mvn spring-boot:run
 ```
 

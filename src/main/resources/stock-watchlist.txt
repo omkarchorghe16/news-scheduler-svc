@@ -1,0 +1,29 @@
+# Add one ticker per line under the matching section.
+# Lines starting with # and blank lines are ignored.
+
+[US]
+AAPL
+GOOGL
+MSFT
+TSLA
+META
+AMZN
+NVDA
+JPM
+V
+WMT
+
+[INDIA]
+RELIANCE.NS
+INFY.NS
+TCS.NS
+WIPRO.NS
+LT.NS
+MARUTI.NS
+BAJAJ-AUTO.NS
+ICICIBANK.NS
+SBIN.NS
+BHARTIARTL.NS
+
+[PORTFOLIO]
+# Add symbols here to include them in the portfolio digest.

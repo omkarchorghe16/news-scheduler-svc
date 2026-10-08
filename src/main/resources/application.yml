@@ -58,30 +58,6 @@ app:
     alpha-vantage-base-url: ${ALPHA_VANTAGE_BASE_URL:https://www.alphavantage.co/query}
     timeout-seconds: ${APP_APIS_TIMEOUT_SECONDS:5}
     max-retries: ${APP_APIS_MAX_RETRIES:3}
-  watchlist:
-    us-symbols:
-      - AAPL
-      - GOOGL
-      - MSFT
-      - TSLA
-      - META
-      - AMZN
-      - NVDA
-      - JPM
-      - V
-      - WMT
-    nse-symbols:
-      - RELIANCE.NS
-      - INFY.NS
-      - TCS.NS
-      - WIPRO.NS
-      - LT.NS
-      - MARUTI.NS
-      - BAJAJ-AUTO.NS
-      - ICICIBANK.NS
-      - SBIN.NS
-      - BHARTIARTL.NS
-    portfolio-symbols: []
   schedule:
     cron-expression: ${APP_SCHEDULE_CRON_EXPRESSION:0 0 9 * * MON-FRI}
     timezone: ${APP_SCHEDULE_TIMEZONE:America/Chicago}
