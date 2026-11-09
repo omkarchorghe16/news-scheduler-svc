@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Stock News Scheduler Service",
-    "description": "Postman collection for the local application. Select the Local environment to target http://localhost:8080.",
+    "description": "Postman collection for the local application. Select the Local environment to target http://localhost:8082.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -657,6 +657,27 @@
               }
             },
             "url": "{{url}}/api/fmp/profiles"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Saved FMP Stock Profiles",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {\n  pm.response.to.have.status(200);\n});\n",
+                  "pm.test(\"Returns full saved stock profiles\", function () {\n  var profiles = pm.response.json();\n  pm.expect(profiles).to.be.an(\"array\");\n  profiles.forEach(function (profile) {\n    pm.expect(profile).to.have.property(\"symbol\");\n    pm.expect(profile).to.have.property(\"companyName\");\n    pm.expect(profile).to.have.property(\"country\");\n    pm.expect(profile).to.have.property(\"updatedAt\");\n  });\n});\n"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/api/fmp/profiles?symbols=AAPL%2CMSFT"
           },
           "response": []
         },

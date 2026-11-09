@@ -12,12 +12,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -106,6 +108,19 @@ public class FmpProfileService {
             }
         }
         return symbols.stream().map(existing::get).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<FmpStockProfile> findSavedProfiles(List<String> requestedSymbols) {
+        List<String> symbols = StockSymbolNormalizer.normalize(requestedSymbols);
+        Map<String, FmpStockProfile> savedBySymbol = new LinkedHashMap<>();
+        profileRepository.findAllBySymbolIn(symbols)
+                .forEach(profile -> savedBySymbol.put(profile.getSymbol(), profile));
+
+        return symbols.stream()
+                .map(savedBySymbol::get)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private void checkDailyQuota(int requestedCalls, int dailyRequestLimit) {

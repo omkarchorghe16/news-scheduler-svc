@@ -23,7 +23,8 @@ controller tests.
   `@Tag` where appropriate.
 - Preserve the existing `GlobalExceptionHandler` behavior and ProblemDetail response format.
 - Provider-specific profile endpoints may use dedicated controllers and route roots; the FMP profile
-  API is `POST /api/fmp/profiles`. Bulk stock-symbol ingestion is `POST /api/stock-symbols` and
+  API uses `POST /api/fmp/profiles` to upsert profiles then return the persisted full records and
+  `GET /api/fmp/profiles?symbols=AAPL,MSFT` to read matching saved full profiles. Bulk stock-symbol ingestion is `POST /api/stock-symbols` and
   requires `sectorId` plus a non-empty `tickers` list.
 
 ## Implementation sequence

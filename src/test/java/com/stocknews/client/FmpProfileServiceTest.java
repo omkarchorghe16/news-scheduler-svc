@@ -93,4 +93,45 @@ class FmpProfileServiceTest {
         verify(apiCallRepository, never()).countByCalledAtAfter(any());
         verify(profileRepository, never()).saveAllAndFlush(any());
     }
+
+    @Test
+    void updatesAnExpiredSavedProfileInsteadOfCreatingAnotherRow() {
+        FmpStockProfile savedProfile = new FmpStockProfile();
+        savedProfile.setId(42L);
+        savedProfile.setSymbol("AAPL");
+        savedProfile.setCompanyName("Old Name");
+        savedProfile.setUpdatedAt(LocalDateTime.now().minusHours(25));
+
+        FmpStockProfile refreshedProfile = new FmpStockProfile();
+        refreshedProfile.setSymbol("AAPL");
+        refreshedProfile.setCompanyName("Updated Name");
+        when(profileRepository.findAllBySymbolIn(List.of("AAPL"))).thenReturn(List.of(savedProfile));
+        when(apiCallRepository.countByCalledAtAfter(any())).thenReturn(0L);
+        when(client.fetchProfile("AAPL")).thenReturn(refreshedProfile);
+        when(profileRepository.saveAllAndFlush(any())).thenReturn(List.of(refreshedProfile));
+
+        List<FmpStockProfile> result = service.fetchAndSave(List.of("AAPL"));
+
+        assertEquals(42L, refreshedProfile.getId());
+        assertEquals("Updated Name", result.getFirst().getCompanyName());
+        verify(profileRepository).saveAllAndFlush(List.of(refreshedProfile));
+    }
+
+    @Test
+    void returnsFullSavedProfilesInRequestOrderWithoutCallingFmp() {
+        FmpStockProfile msft = new FmpStockProfile();
+        msft.setSymbol("MSFT");
+        msft.setCountry("US");
+        FmpStockProfile aapl = new FmpStockProfile();
+        aapl.setSymbol("AAPL");
+        aapl.setCountry("US");
+        when(profileRepository.findAllBySymbolIn(List.of("MSFT", "MISSING", "AAPL")))
+                .thenReturn(List.of(aapl, msft));
+
+        List<FmpStockProfile> result =
+                service.findSavedProfiles(List.of(" msft ", "MISSING", "AAPL", "MSFT"));
+
+        assertEquals(List.of(msft, aapl), result);
+        verify(client, never()).fetchProfile(any());
+    }
 }

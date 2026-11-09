@@ -7,6 +7,7 @@ workspace:
 cloudResources:
   collections:
     ../postman/collections/Stock News Scheduler Service-2: b55b9d25-0ef1-43a5-9748-b09cbc409988
+    ../postman/collections/Folio Pro API: b30660d1-de00-4e4c-b5d3-4ca1df56f008
 
 # All resources in the `postman/` folder are automatically registered in Local View.
 # Point to additional files outside the `postman/` folder to register them individually. Example:

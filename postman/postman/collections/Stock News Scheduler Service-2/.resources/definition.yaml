@@ -1,5 +1,0 @@
-$kind: collection
-name: Stock News Scheduler Service
-description: Postman collection for the local application. Select the Local environment to target http://localhost:8080.
-variables:
-  apiPath: /api/digest

@@ -14,6 +14,9 @@ provider/database workflow.
   Do not add a new test framework or dependency for routine coverage.
 - Controller tests use `@WebMvcTest`, MockMvc, and mocked service dependencies. Assert response
   status, JSON contract, headers, validation, and service delegation as applicable.
+- Provider profile APIs may have a provider-backed upsert followed by a database read, plus a
+  database-only saved-data GET; cover persisted response shape, save-before-read order, query
+  validation, ordering, and absence of external provider calls on GET.
 - When a route moves to another controller, move/update its controller tests and ensure the old
   route is not left documented as current. Add contract coverage for new routes such as
   `POST /api/stock-symbols` using a mocked `StockService`.

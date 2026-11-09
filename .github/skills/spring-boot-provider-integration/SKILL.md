@@ -17,15 +17,21 @@ or another remote service.
 - Bind provider URLs, credentials, limits, and feature switches using `AppProperties` or the
   provider-specific configuration properties class. Document names/defaults in
   `src/main/resources/application.yml`; keep real values in environment variables, the ignored
-  local `.env` used by Docker Compose, or the ignored `application-secrets.yml` for direct local runs.
+  local `.env` used by Docker Compose, or the ignored root-level `application-secrets.yml` for direct
+  local runs. Treat the existing root-level `application-secrets.yml` as persistent developer-owned
+  configuration: never overwrite, regenerate, or relocate its values during routine changes.
+  `src/main/resources/application-local.yml` is tracked and must not contain actual credentials or
+  be edited to move/copy local secrets. Ensure the active profile does not override imported secrets
+  with empty placeholders; restart the app after editing the secrets file.
 - Normalize stock symbols once at the service boundary with the existing normalizer when applicable.
 - Enforce provider rate limits before issuing requests. Use persisted usage records for durable
   quotas when the provider service already follows that pattern.
 - Map provider responses into typed models. Keep error/status translation close to the provider
   client and propagate failures rather than returning empty success-shaped data.
 - Keep provider-specific HTTP APIs in dedicated controllers when separating them improves API
-  clarity. The FMP profile endpoint is `POST /api/fmp/profiles`; the request accepts a `symbols`
-  list and the service fetches/caches/persists profile data.
+  clarity. `POST /api/fmp/profiles` accepts a `symbols` list, upserts fetched/cached profile data by
+  ticker symbol, then reads and returns the persisted full profiles. `GET /api/fmp/profiles?symbols=AAPL,MSFT`
+  reads full saved profiles without making provider requests.
 - Logs must not contain credentials, authorization headers, full credential-bearing URLs, raw
   provider responses, business-summary text, or unsanitized exception details that can reveal them.
 

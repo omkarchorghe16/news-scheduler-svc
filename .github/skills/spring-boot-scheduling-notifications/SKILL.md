@@ -20,7 +20,10 @@ delivery-channel behavior.
   unless deliberately changing and testing it.
 - Keep schedules, time zones, watchlists, and notification/provider settings in `AppProperties` and
   `application.yml`. For Docker Compose local runs, supported schedule and WhatsApp settings can be
-  overridden through the ignored `.env` file.
+  overridden through the ignored `.env` file. Host-run local applications can load notification
+  credentials from the ignored root-level `application-secrets.yml`; preserve that developer-owned
+  file and its values during routine work, and restart after changing it. Keep real credentials out of
+  the tracked `src/main/resources/application-local.yml`.
 - Docker Compose runs a single application container locally. Avoid introducing multiple concurrent
   scheduler instances unless scheduled digest execution is coordinated across instances.
 - Never log complete message bodies, raw provider responses, webhook URLs, bot tokens, or auth

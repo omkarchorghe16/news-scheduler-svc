@@ -23,8 +23,12 @@ application-wide conventions, affects deployment topology, or introduces a new s
   Docker Hub, persists database state in a named volume, and binds the host port to loopback. The app
   uses Compose DNS (`postgres:5432`); a Spring Boot app launched on the host and Mac database clients
   use `localhost:5433` by default. The ignored `.env` supplies datasource and provider/notification
-  configuration to Compose; host-run Maven/IDE processes must explicitly receive its values. Never
-  commit this file or copy it into the image.
+  configuration to Compose; host-run Maven/IDE processes can load credentials from the ignored
+  root-level `application-secrets.yml`, imported by `application.yml`. Run the IDE from the repository
+  root and restart after changing secrets. Keep this local file as the persistent source for developer
+  credentials; do not overwrite or regenerate it during routine work. Keep
+  `src/main/resources/application-local.yml` tracked and free of real credentials; do not edit it to
+  move or duplicate local secrets. Never commit either secrets file or copy it into the image.
 - `k8s/` and `scripts/deploy-local-k8s.sh` remain an optional single-user Docker Desktop workflow
   using PostgreSQL on the Mac host. It keeps one replica because scheduling is instance-local and
   syncs the ignored local secrets file into a Kubernetes Secret.
@@ -50,6 +54,8 @@ application-wide conventions, affects deployment topology, or introduces a new s
 - Keep provider-specific API routes in appropriately scoped controllers (for example,
   `FmpProfileController` under `/api/fmp`) and stock-management routes separate from provider-fetch
   workflows (for example, `StockSymbolController` under `/api/stock-symbols`).
+- FMP profile writes upsert by ticker symbol, then read persisted profiles for the response; the
+  saved-profile GET also returns full profiles without issuing provider requests.
 - Do not introduce another datasource, production H2 mirroring, migration framework, security
   mechanism, or new architecture pattern without confirming compatibility and the intended trade-off.
 - Keep local Compose PostgreSQL isolated in its named volume and bound to host loopback; do not

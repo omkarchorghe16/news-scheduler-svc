@@ -1,4 +1,0 @@
-$kind: http-request
-url: "{{url}}/actuator/metrics"
-method: GET
-order: 2000

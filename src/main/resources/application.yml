@@ -24,6 +24,9 @@ spring:
     scheduling:
       enabled: true
 
+server:
+  port: ${SERVER_PORT:8082}
+
 fmp:
   # Keep the key in application-secrets.yml or set FMP_API_KEY in the environment.
   base-url: ${FMP_BASE_URL:https://financialmodelingprep.com/stable}

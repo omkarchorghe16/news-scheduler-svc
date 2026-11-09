@@ -15,13 +15,18 @@ Use this skill when changing persisted data, repository queries, or transactiona
 - Local development uses the official PostgreSQL Docker image via `compose.yaml`, with persistent
   data in the `postgres_data` named volume; app containers connect to `postgres:5432`, while a
   host-run Spring Boot app and Mac database clients connect to `localhost:5433` by default. The
-  ignored `.env` configures its database name, user, password, and host port; set the matching
-  datasource environment variables before launching Maven, or add them to the IDE run configuration.
+  ignored `.env` configures Compose. Host-run Maven/IDE processes can load datasource credentials
+  from the ignored root-level `application-secrets.yml`; run from the repository root and restart
+  after editing it. Preserve this developer-owned file and its values during routine work; do not
+  move credentials into the tracked `src/main/resources/application-local.yml`.
   Docker Desktop Kubernetes is an optional local-only workflow using PostgreSQL on the Mac host.
 - JPA entities live in `com.stocknews.model`; Spring Data repositories live in
   `com.stocknews.repository`; use-case transactions belong in service classes.
 - Preserve existing entity/table/column naming and typed models. Keep provider-specific records
   separate when their schemas or units differ.
+- FMP profiles are upserted by their unique symbol, retaining an existing entity ID on refresh. The
+  POST reads matching records after persistence before returning, while the saved-profile GET reads
+  matching records without calling the provider.
 - Keep HTTP concerns out of entities and repository interfaces.
 - Use `@Transactional(readOnly = true)` for read workflows and `@Transactional` for mutations or
   multi-step workflows that need one database transaction.

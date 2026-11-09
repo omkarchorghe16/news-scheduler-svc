@@ -356,6 +356,13 @@ export TWILIO_WHATSAPP_FROM="whatsapp:+1234567890"
 export TWILIO_WHATSAPP_TO="whatsapp:+0987654321"
 ```
 
+For local Maven or IDE runs, you can instead keep credentials in the ignored root-level
+`application-secrets.yml`. Copy `application-secrets.example.yml` to `application-secrets.yml` and
+fill in the values there. The application imports that file automatically when the `local` profile
+is active (the default). Set IntelliJ's working directory to the repository root so the file is
+found. Restart the application after changing secrets; Spring reads the file at startup. Never put
+real credentials in `src/main/resources` or commit `application-secrets.yml`.
+
 ### 3. Build the Project
 
 ```bash
@@ -378,6 +385,8 @@ The default Spring profile is `local`. Before starting Maven, set `POSTGRES_URL`
 `POSTGRES_PASSWORD` to the local password configured in `.env`. For an IDE run, configure those
 three environment variables in its run configuration. `.env` is read by Docker Compose, not
 automatically by Maven or IDEs.
+The application listens on `http://localhost:8082` by default; override this with `SERVER_PORT` if
+needed. Docker Compose also exposes it at `http://localhost:8082`.
 
 **Optional local schedule override (every 5 minutes)**
 ```bash
@@ -389,7 +398,7 @@ mvn spring-boot:run
 
 Check health endpoint:
 ```bash
-curl http://localhost:8080/api/digest/health
+curl http://localhost:8082/api/digest/health
 ```
 
 Expected response:
@@ -401,27 +410,28 @@ Stock News Scheduler Service is running
 
 ### Swagger / OpenAPI
 
-With the application running, browse to `http://localhost:8080/swagger-ui/index.html` for interactive
-API documentation. The generated OpenAPI JSON is available at `http://localhost:8080/v3/api-docs`.
+With the application running on its default local port `8082`, browse to
+`http://localhost:8082/swagger-ui/index.html` for interactive API documentation. The generated
+OpenAPI JSON is available at `http://localhost:8082/v3/api-docs`.
 
 ### Stock Profiles
 
 Fetch one or more symbols by POSTing a JSON list. Each provider has a separate endpoint:
 
 ```bash
-curl -X POST http://localhost:8080/api/stocks/finnhub/profiles \
+curl -X POST http://localhost:8082/api/stocks/finnhub/profiles \
   -H "Content-Type: application/json" \
   -d '{"symbols":["AAPL","MSFT"]}'
 
-curl -X POST http://localhost:8080/api/stocks/yahoo/profiles \
+curl -X POST http://localhost:8082/api/stocks/yahoo/profiles \
   -H "Content-Type: application/json" \
   -d '{"symbols":["AAPL","MSFT"]}'
 
-curl -X POST http://localhost:8080/api/stocks/alphavantage/overview \
+curl -X POST http://localhost:8082/api/stocks/alphavantage/overview \
   -H "Content-Type: application/json" \
   -d '{"symbols":["AAPL","MSFT"]}'
 
-curl -X POST http://localhost:8080/api/fmp/profiles \
+curl -X POST http://localhost:8082/api/fmp/profiles \
   -H "Content-Type: application/json" \
   -d '{"symbols":["AAPL","MSFT"]}'
 ```
@@ -438,11 +448,41 @@ FMP profiles use `FMP_API_KEY` and the `https://financialmodelingprep.com/stable
 default. You can override it with `FMP_BASE_URL`. The service enforces the configurable
 `FMP_DAILY_REQUEST_LIMIT` (default 250 calls in a rolling 24-hour window), tracked in PostgreSQL.
 Profiles are reused from PostgreSQL for `FMP_PROFILE_CACHE_HOURS` (default 24); set it to `0` to
-fetch fresh data on every request.
+fetch fresh data on every POST request. POST upserts fetched profiles by ticker symbol, preserving
+the existing database row rather than inserting a duplicate.
 FMP Basic/free accounts are US-exchange-only; requests containing `.NS` or `.BO` are rejected by
 default. Set `FMP_US_EXCHANGES_ONLY=false` only when your FMP plan supports those symbols.
 Every FMP profile record includes the complete raw provider record in `raw_payload`.
 
+To fetch full saved profile records without calling FMP, use
+`GET /api/fmp/profiles?symbols=AAPL,MSFT`. The `symbols` query parameter also accepts repeated
+values (`?symbols=AAPL&symbols=MSFT`). The response includes only matching saved profiles, in request
+order; symbols not found in PostgreSQL are omitted. `POST /api/fmp/profiles` first fetches and
+upserts the requested symbols, then reads the matching saved records from PostgreSQL and returns those
+full records to the caller.
+
+```json
+[
+  {
+    "id": 1,
+    "symbol": "AAPL",
+    "companyName": "Apple Inc.",
+    "currency": "USD",
+    "exchange": "NASDAQ Global Select",
+    "industry": "Consumer Electronics",
+    "marketCap": 3000000000000,
+    "price": 210.5,
+    "sector": "Technology",
+    "country": "US",
+    "description": "Company description...",
+    "updatedAt": "2026-11-08T20:00:00"
+  }
+]
+```
+
+The response contains the persisted FMP profile fields; provider fields may be null, and
+`rawPayload` contains the provider record. The Postman collection includes both the FMP upsert request
+and saved-profile lookup request.
 Finnhub requests are spaced to stay within the provider's 60-calls-per-minute limit for this endpoint.
 Yahoo Finance is an unofficial API and may rate-limit requests or change its response format.
 Alpha Vantage requests are limited to 25 per day and 5 per minute. The daily count is persisted in
@@ -452,7 +492,7 @@ Create your own API key at [alphavantage.co](https://www.alphavantage.co/support
 The Postman collection includes profile requests for all four providers and a validation test for an
 empty symbol list. Import one collection, `postman/stock-news-scheduler.postman_collection.json`,
 and the Local environment from `postman/`. The Local environment points to
-`http://localhost:8080`; configure Finnhub, Alpha Vantage, and FMP API keys in the running application
+`http://localhost:8082`; configure Finnhub, Alpha Vantage, and FMP API keys in the running application
 to run Stock Profiles. The Yahoo request does not require a key.
 
 The collection includes requests that create/update/delete database records, trigger digests and
@@ -465,7 +505,7 @@ Add a list of ticker symbols to an existing sector. The service normalizes ticke
 that do not already exist in that sector, and reports already-present tickers in `skipped`:
 
 ```bash
-curl -X POST http://localhost:8080/api/stock-symbols \
+curl -X POST http://localhost:8082/api/stock-symbols \
   -H "Content-Type: application/json" \
   -d '{"sectorId":3,"tickers":["AAPL","MSFT","NVDA"]}'
 ```
@@ -478,7 +518,7 @@ continues to support the same bulk-creation operation.
 
 #### Trigger Daily Digest
 ```bash
-curl -X POST http://localhost:8080/api/digest/run
+curl -X POST http://localhost:8082/api/digest/run
 ```
 
 Response:
@@ -490,7 +530,7 @@ Response:
 
 #### Trigger Portfolio Digest
 ```bash
-curl -X POST http://localhost:8080/api/digest/portfolio
+curl -X POST http://localhost:8082/api/digest/portfolio
 ```
 
 Response:
@@ -502,7 +542,7 @@ Response:
 
 #### Health Check
 ```bash
-curl http://localhost:8080/api/digest/health
+curl http://localhost:8082/api/digest/health
 ```
 
 Response:
